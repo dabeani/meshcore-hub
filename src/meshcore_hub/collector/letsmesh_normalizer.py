@@ -100,6 +100,13 @@ class LetsMeshNormalizer:
         if decoded_packet is None:
             decoded_packet = self._letsmesh_decoder.decode_payload(payload)
 
+        if (
+            packet_type == 1
+            and self._extract_letsmesh_decoder_response_content_data(decoded_packet)
+            is not None
+        ):
+            return None
+
         # In LetsMesh compatibility mode, only show messages that decrypt.
         text = self._extract_letsmesh_decoder_text(decoded_packet)
         if not text:
@@ -460,6 +467,33 @@ class LetsMeshNormalizer:
                 "battery_percentage": battery_percentage,
             }
 
+        if node_public_key:
+            hop_count = self._parse_int(content_data.get("hop_count"))
+            if hop_count is None:
+                hop_count = self._parse_int(content_data.get("hopCount"))
+            if hop_count is not None:
+                return "path_updated", {
+                    "node_public_key": node_public_key,
+                    "hop_count": hop_count,
+                }
+
+        status = content_data.get("status")
+        if isinstance(status, str) and status.strip():
+            status_payload: dict[str, Any] = {
+                "status": status.strip(),
+            }
+            if node_public_key:
+                status_payload["node_public_key"] = node_public_key
+            uptime = self._parse_int(content_data.get("uptime"))
+            message_count = self._parse_int(content_data.get("message_count"))
+            if message_count is None:
+                message_count = self._parse_int(content_data.get("messageCount"))
+            if uptime is not None:
+                status_payload["uptime"] = uptime
+            if message_count is not None:
+                status_payload["message_count"] = message_count
+            return "status_response", status_payload
+
         telemetry_data = content_data.get("parsed_data")
         if not isinstance(telemetry_data, dict):
             telemetry_data = content_data.get("parsedData")
@@ -488,33 +522,6 @@ class LetsMeshNormalizer:
             if isinstance(lpp_data, str) and lpp_data.strip():
                 telemetry_payload["lpp_data"] = lpp_data.strip()
             return "telemetry_response", telemetry_payload
-
-        if node_public_key:
-            hop_count = self._parse_int(content_data.get("hop_count"))
-            if hop_count is None:
-                hop_count = self._parse_int(content_data.get("hopCount"))
-            if hop_count is not None:
-                return "path_updated", {
-                    "node_public_key": node_public_key,
-                    "hop_count": hop_count,
-                }
-
-        status = content_data.get("status")
-        if isinstance(status, str) and status.strip():
-            status_payload: dict[str, Any] = {
-                "status": status.strip(),
-            }
-            if node_public_key:
-                status_payload["node_public_key"] = node_public_key
-            uptime = self._parse_int(content_data.get("uptime"))
-            message_count = self._parse_int(content_data.get("message_count"))
-            if message_count is None:
-                message_count = self._parse_int(content_data.get("messageCount"))
-            if uptime is not None:
-                status_payload["uptime"] = uptime
-            if message_count is not None:
-                status_payload["message_count"] = message_count
-            return "status_response", status_payload
 
         return None
 
@@ -639,6 +646,20 @@ class LetsMeshNormalizer:
         if not isinstance(payload, dict):
             return None
         return cls._extract_letsmesh_text(payload)
+
+    @classmethod
+    def _extract_letsmesh_decoder_response_content_data(
+        cls,
+        decoded_packet: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        """Extract structured response content from decoder JSON output."""
+        decoded_payload = cls._extract_letsmesh_decoder_payload(decoded_packet)
+        if not decoded_payload:
+            return None
+        decrypted = decoded_payload.get("decrypted")
+        if not isinstance(decrypted, dict):
+            return None
+        return cls._extract_response_content_data(decrypted.get("content"))
 
     @classmethod
     def _extract_letsmesh_decoder_sender_timestamp(
