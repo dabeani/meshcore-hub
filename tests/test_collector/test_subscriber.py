@@ -24,6 +24,11 @@ class TestSubscriber:
             "a" * 64,
             "status",
         )
+        client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "status",
+        )
         return client
 
     @pytest.fixture
@@ -88,6 +93,139 @@ class TestSubscriber:
         ]
         mock_mqtt_client.subscribe.assert_has_calls(expected_calls, any_order=False)
         assert mock_mqtt_client.subscribe.call_count == 3
+
+    def test_start_subscribes_to_mc2mqtt_topics(self, mock_mqtt_client, db_manager):
+        """MC2MQTT mode subscribes to packets/status/debug feeds with IATA segment."""
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+
+        subscriber.start()
+
+        expected_calls = [
+            call("meshcore/BOS/+/+/packets", subscriber._handle_mqtt_message),
+            call("meshcore/BOS/+/+/status", subscriber._handle_mqtt_message),
+            call("meshcore/BOS/+/+/debug", subscriber._handle_mqtt_message),
+        ]
+        mock_mqtt_client.subscribe.assert_has_calls(expected_calls, any_order=False)
+        assert mock_mqtt_client.subscribe.call_count == 3
+
+    def test_mc2mqtt_status_maps_to_advertisement(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT status feeds normalize to advertisement events."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "status",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        subscriber.register_handler("advertisement", handler)
+        subscriber.start()
+
+        subscriber._handle_mqtt_message(
+            topic=f"meshcore/BOS/{'a' * 64}/status",
+            pattern="meshcore/BOS/+/+/status",
+            payload={
+                "origin": "Observer Node",
+                "origin_id": "b" * 64,
+                "status": "online",
+                "model": "RAK4631",
+            },
+        )
+
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "advertisement"
+        assert payload["public_key"] == "b" * 64
+        assert payload["name"] == "Observer Node"
+        assert payload["adv_type"] == "repeater"
+        assert payload["status"] == "online"
+        assert payload["model"] == "RAK4631"
+
+    def test_mc2mqtt_packets_map_to_packet_log(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet feeds normalize to packet log events."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        subscriber.register_handler("packet_log", handler)
+        subscriber.start()
+
+        subscriber._handle_mqtt_message(
+            topic=f"meshcore/BOS/{'a' * 64}/packets",
+            pattern="meshcore/BOS/+/+/packets",
+            payload={
+                "origin_id": "b" * 64,
+                "hash": "ABCDEF1234",
+                "packet_type": "5",
+                "SNR": "12.5",
+                "RSSI": "-93",
+                "score": "1000",
+                "path": "C2 -> E2",
+            },
+        )
+
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "packet_log"
+        assert payload["hash"] == "ABCDEF1234"
+        assert payload["packet_type"] == 5
+        assert payload["snr"] == 12.5
+        assert payload["rssi"] == -93.0
+        assert payload["score"] == 1000
+        assert payload["path"] == "C2 -> E2"
+
+    def test_mc2mqtt_debug_maps_to_debug_log(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT debug feeds normalize to debug log events."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "debug",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        subscriber.register_handler("debug_log", handler)
+        subscriber.start()
+
+        subscriber._handle_mqtt_message(
+            topic=f"meshcore/BOS/{'a' * 64}/debug",
+            pattern="meshcore/BOS/+/+/debug",
+            payload={
+                "origin_id": "b" * 64,
+                "message": "DEBUG line",
+            },
+        )
+
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "debug_log"
+        assert payload["message"] == "DEBUG line"
 
     def test_letsmesh_status_maps_to_letsmesh_status(
         self, mock_mqtt_client, db_manager

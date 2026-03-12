@@ -99,52 +99,6 @@ services:
       start_period: 30s
 
   # ==========================================================================
-  # Interface meshcoretomqtt Receiver - Bridge meshcoretomqtt MQTT data
-  # Subscribes to topics from a Pi running meshcoretomqtt and re-publishes
-  # them in meshcore-hub event format so the collector can ingest them.
-  # Requires repeater built with -D MESH_PACKET_LOGGING=1 (and optionally
-  # -D MESH_DEBUG=1) and meshcoretomqtt running on the same or another host.
-  # See https://github.com/Cisien/meshcoretomqtt
-  # ==========================================================================
-  interface-receiver-mc2mqtt:
-    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: meshcore-interface-receiver-mc2mqtt
-    profiles:
-      - all
-      - mc2mqtt
-    restart: unless-stopped
-    environment:
-      - LOG_LEVEL=${LOG_LEVEL:-INFO}
-      # Source broker: where meshcoretomqtt publishes packet/status/debug data
-      - MC2MQTT_SOURCE_HOST=${MC2MQTT_SOURCE_HOST:-localhost}
-      - MC2MQTT_SOURCE_PORT=${MC2MQTT_SOURCE_PORT:-1883}
-      - MC2MQTT_SOURCE_USERNAME=${MC2MQTT_SOURCE_USERNAME:-}
-      - MC2MQTT_SOURCE_PASSWORD=${MC2MQTT_SOURCE_PASSWORD:-}
-      - MC2MQTT_SOURCE_TLS=${MC2MQTT_SOURCE_TLS:-false}
-      # Topic prefix used by meshcoretomqtt (matches [topics] in its config.toml)
-      - MC2MQTT_SOURCE_PREFIX=${MC2MQTT_SOURCE_PREFIX:-meshcore}
-      # Optional: restrict to a single IATA location code (e.g. SEA, LAX)
-      # Leave empty to subscribe to all locations (+)
-      - MC2MQTT_SOURCE_IATA=${MC2MQTT_SOURCE_IATA:-}
-      # Output broker: where the meshcore-hub collector listens for events
-      - MQTT_HOST=${MQTT_HOST:-mqtt}
-      - MQTT_PORT=${MQTT_PORT:-1883}
-      - MQTT_USERNAME=${MQTT_USERNAME:-}
-      - MQTT_PASSWORD=${MQTT_PASSWORD:-}
-      - MQTT_PREFIX=${MQTT_PREFIX:-meshcore}
-      - MQTT_TLS=${MQTT_TLS:-false}
-    command: ["interface", "receiver-mc2mqtt"]
-    healthcheck:
-      test: ["CMD", "meshcore-hub", "health", "interface"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
-
-  # ==========================================================================
   # Interface Mock Receiver - For testing without real devices
   # ==========================================================================
   interface-mock-receiver:
@@ -207,6 +161,7 @@ services:
       - MQTT_TRANSPORT=${MQTT_TRANSPORT:-tcp}
       - MQTT_WS_PATH=${MQTT_WS_PATH:-/mqtt}
       - COLLECTOR_INGEST_MODE=${COLLECTOR_INGEST_MODE:-native}
+      - MQTT_MC2MQTT=${MQTT_MC2MQTT:-false}
       - COLLECTOR_LETSMESH_DECODER_ENABLED=${COLLECTOR_LETSMESH_DECODER_ENABLED:-true}
       - COLLECTOR_LETSMESH_DECODER_COMMAND=${COLLECTOR_LETSMESH_DECODER_COMMAND:-meshcore-decoder}
       - COLLECTOR_LETSMESH_DECODER_KEYS=${COLLECTOR_LETSMESH_DECODER_KEYS:-}

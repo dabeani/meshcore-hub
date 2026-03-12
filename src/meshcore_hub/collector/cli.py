@@ -69,6 +69,15 @@ if TYPE_CHECKING:
     help="MQTT WebSocket path (used when transport=websockets)",
 )
 @click.option(
+    "--mqtt-mc2mqtt/--no-mqtt-mc2mqtt",
+    default=False,
+    envvar="MQTT_MC2MQTT",
+    help=(
+        "Parse subscribed MQTT topics as meshcoretomqtt feeds "
+        "(<prefix>/<iata>/<pubkey>/(status|packets|debug))"
+    ),
+)
+@click.option(
     "--ingest-mode",
     "collector_ingest_mode",
     type=click.Choice(["native", "letsmesh_upload"], case_sensitive=False),
@@ -117,6 +126,7 @@ def collector(
     mqtt_tls: bool,
     mqtt_transport: str,
     mqtt_ws_path: str,
+    mqtt_mc2mqtt: bool,
     collector_ingest_mode: str,
     data_home: str | None,
     seed_home: str | None,
@@ -152,8 +162,15 @@ def collector(
     if overrides:
         settings = settings.model_copy(update=overrides)
 
+    if mqtt_mc2mqtt and collector_ingest_mode.lower() != "native":
+        raise click.UsageError(
+            "MQTT_MC2MQTT cannot be combined with COLLECTOR_INGEST_MODE values "
+            "other than 'native'."
+        )
+
     # Use effective database URL if not explicitly provided
     effective_db_url = database_url if database_url else settings.effective_database_url
+    effective_ingest_mode = "mc2mqtt" if mqtt_mc2mqtt else collector_ingest_mode
 
     ctx.ensure_object(dict)
     ctx.obj["mqtt_host"] = mqtt_host
@@ -164,7 +181,8 @@ def collector(
     ctx.obj["mqtt_tls"] = mqtt_tls
     ctx.obj["mqtt_transport"] = mqtt_transport
     ctx.obj["mqtt_ws_path"] = mqtt_ws_path
-    ctx.obj["collector_ingest_mode"] = collector_ingest_mode
+    ctx.obj["collector_ingest_mode"] = effective_ingest_mode
+    ctx.obj["mqtt_mc2mqtt"] = mqtt_mc2mqtt
     ctx.obj["data_home"] = data_home or settings.data_home
     ctx.obj["seed_home"] = settings.effective_seed_home
     ctx.obj["database_url"] = effective_db_url
@@ -182,7 +200,7 @@ def collector(
             mqtt_tls=mqtt_tls,
             mqtt_transport=mqtt_transport,
             mqtt_ws_path=mqtt_ws_path,
-            ingest_mode=collector_ingest_mode,
+            ingest_mode=effective_ingest_mode,
             database_url=effective_db_url,
             log_level=log_level,
             data_home=data_home or settings.data_home,

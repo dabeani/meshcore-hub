@@ -194,6 +194,14 @@ class CollectorSettings(CommonSettings):
             "<prefix>/<pubkey>/(packets|status|internal)."
         ),
     )
+    mqtt_mc2mqtt: bool = Field(
+        default=False,
+        description=(
+            "Enable MC2MQTT topic parsing in the collector. "
+            "When true, the collector treats MQTT input as meshcoretomqtt feeds "
+            "and ignores COLLECTOR_INGEST_MODE=native."
+        ),
+    )
     collector_letsmesh_decoder_enabled: bool = Field(
         default=True,
         description=(

@@ -490,6 +490,7 @@ ${DATA_HOME}/
 | DATABASE_URL | sqlite:///{DATA_HOME}/collector/meshcore.db | SQLAlchemy URL |
 | TAGS_FILE | {DATA_HOME}/collector/tags.json | Path to tags JSON file |
 | COLLECTOR_INGEST_MODE | native | Ingest mode (`native` or `letsmesh_upload`) |
+| MQTT_MC2MQTT | false | Parse meshcoretomqtt feeds directly in the collector |
 | COLLECTOR_LETSMESH_DECODER_ENABLED | true | Enable external packet decoding in LetsMesh mode |
 
 LetsMesh compatibility parity note:
