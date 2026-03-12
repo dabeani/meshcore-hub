@@ -55,3 +55,19 @@ class TestTopicBuilder:
         )
 
         assert parsed is None
+
+    def test_parse_mc2mqtt_topic(self) -> None:
+        """MC2MQTT topics map to IATA, public key, and feed type."""
+        builder = TopicBuilder(prefix="meshcore")
+
+        parsed = builder.parse_mc2mqtt_topic("meshcore/BOS/ABCDEF1234567890/status")
+
+        assert parsed == ("BOS", "ABCDEF1234567890", "status")
+
+    def test_parse_mc2mqtt_topic_rejects_unknown_feed(self) -> None:
+        """Unknown MC2MQTT feed topics are rejected."""
+        builder = TopicBuilder(prefix="meshcore")
+
+        parsed = builder.parse_mc2mqtt_topic("meshcore/BOS/ABCDEF1234567890/internal")
+
+        assert parsed is None

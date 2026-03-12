@@ -30,6 +30,26 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _safe_int(value: Any) -> Optional[int]:
+    """Convert a value to int, returning None on failure."""
+    if value is None:
+        return None
+    try:
+        return int(value)
+    except (ValueError, TypeError):
+        return None
+
+
+def _safe_float(value: Any) -> Optional[float]:
+    """Convert a value to float, returning None on failure."""
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (ValueError, TypeError):
+        return None
+
+
 # Handler type: receives (public_key, event_type, payload, db_manager)
 EventHandler = Callable[[str, str, dict[str, Any], DatabaseManager], None]
 
@@ -38,6 +58,7 @@ class Subscriber(LetsMeshNormalizer):
     """MQTT Subscriber for collecting and storing MeshCore events."""
 
     INGEST_MODE_NATIVE = "native"
+    INGEST_MODE_MC2MQTT = "mc2mqtt"
     INGEST_MODE_LETSMESH_UPLOAD = "letsmesh_upload"
 
     def __init__(
@@ -97,6 +118,7 @@ class Subscriber(LetsMeshNormalizer):
         self._ingest_mode = ingest_mode.lower()
         if self._ingest_mode not in {
             self.INGEST_MODE_NATIVE,
+            self.INGEST_MODE_MC2MQTT,
             self.INGEST_MODE_LETSMESH_UPLOAD,
         }:
             raise ValueError(f"Unsupported collector ingest mode: {ingest_mode}")
@@ -153,7 +175,9 @@ class Subscriber(LetsMeshNormalizer):
             payload: Message payload
         """
         parsed: tuple[str, str, dict[str, Any]] | None
-        if self._ingest_mode == self.INGEST_MODE_LETSMESH_UPLOAD:
+        if self._ingest_mode == self.INGEST_MODE_MC2MQTT:
+            parsed = self._normalize_mc2mqtt_event(topic, payload)
+        elif self._ingest_mode == self.INGEST_MODE_LETSMESH_UPLOAD:
             parsed = self._normalize_letsmesh_event(topic, payload)
         else:
             parsed_event = self.mqtt.topic_builder.parse_event_topic(topic)
@@ -172,6 +196,55 @@ class Subscriber(LetsMeshNormalizer):
         public_key, event_type, normalized_payload = parsed
         logger.debug("Received event: %s from %s...", event_type, public_key[:12])
         self._dispatch_event(public_key, event_type, normalized_payload)
+
+    def _normalize_mc2mqtt_event(
+        self, topic: str, payload: dict[str, Any]
+    ) -> tuple[str, str, dict[str, Any]] | None:
+        """Normalize an MC2MQTT topic/payload into a collector event tuple."""
+        parsed = self.mqtt.topic_builder.parse_mc2mqtt_topic(topic)
+        if not parsed:
+            return None
+
+        _iata, public_key, feed_type = parsed
+        event_public_key = payload.get("origin_id") or public_key
+
+        if feed_type == "status":
+            normalized_payload: dict[str, Any] = {
+                "public_key": event_public_key,
+                "name": payload.get("origin", ""),
+                "adv_type": "repeater",
+            }
+            for source_key in ("status", "radio", "firmware_version", "model"):
+                if payload.get(source_key) is not None:
+                    normalized_payload[source_key] = payload[source_key]
+            return (event_public_key, "advertisement", normalized_payload)
+
+        if feed_type == "packets":
+            normalized_payload = {
+                "hash": payload.get("hash"),
+                "direction": payload.get("direction"),
+                "route": payload.get("route"),
+                "packet_type": _safe_int(payload.get("packet_type")),
+                "len": _safe_int(payload.get("len")),
+                "payload_len": _safe_int(payload.get("payload_len")),
+                "raw": payload.get("raw"),
+                "snr": _safe_float(payload.get("SNR")),
+                "rssi": _safe_float(payload.get("RSSI")),
+                "score": _safe_int(payload.get("score")),
+                "duration": _safe_int(payload.get("duration")),
+                "path": payload.get("path"),
+                "timestamp": payload.get("timestamp"),
+            }
+            return (
+                event_public_key,
+                "packet_log",
+                {k: v for k, v in normalized_payload.items() if v is not None},
+            )
+
+        if feed_type == "debug":
+            return (event_public_key, "debug_log", payload)
+
+        return None
 
     def _dispatch_event(
         self,
@@ -406,7 +479,16 @@ class Subscriber(LetsMeshNormalizer):
             raise
 
         # Subscribe to topics based on ingest mode
-        if self._ingest_mode == self.INGEST_MODE_LETSMESH_UPLOAD:
+        if self._ingest_mode == self.INGEST_MODE_MC2MQTT:
+            mc2mqtt_topics = [
+                f"{self.mqtt.topic_builder.prefix}/+/+/packets",
+                f"{self.mqtt.topic_builder.prefix}/+/+/status",
+                f"{self.mqtt.topic_builder.prefix}/+/+/debug",
+            ]
+            for mc2mqtt_topic in mc2mqtt_topics:
+                self.mqtt.subscribe(mc2mqtt_topic, self._handle_mqtt_message)
+                logger.info("Subscribed to MC2MQTT topic: %s", mc2mqtt_topic)
+        elif self._ingest_mode == self.INGEST_MODE_LETSMESH_UPLOAD:
             letsmesh_topics = [
                 f"{self.mqtt.topic_builder.prefix}/+/packets",
                 f"{self.mqtt.topic_builder.prefix}/+/status",

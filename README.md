@@ -183,7 +183,6 @@ Docker Compose uses **profiles** to select which services to run:
 | `sender` | interface-sender | Sender node (MQTT to device) |
 | `mqtt` | mosquitto broker | Local MQTT broker (optional) |
 | `mock` | interface-mock-receiver | Testing without hardware |
-| `mc2mqtt` | interface-receiver-mc2mqtt | Bridge meshcoretomqtt MQTT data to meshcore-hub |
 | `migrate` | db-migrate | One-time database migration |
 | `seed` | seed | One-time seed data import |
 | `metrics` | prometheus, alertmanager | Prometheus metrics and alerting |
@@ -217,7 +216,7 @@ docker compose down
 
 ### meshcoretomqtt Integration (Packet-Logging Receivers)
 
-If you have MeshCore repeaters built with **`-D MESH_PACKET_LOGGING=1`** (and optionally **`-D MESH_DEBUG=1`**) connected to a Raspberry Pi or similar Linux host running [meshcoretomqtt](https://github.com/Cisien/meshcoretomqtt), you can feed their RF packet data directly into MeshCore Hub without any serial connection from the Hub host.
+If you have MeshCore repeaters built with **`-D MESH_PACKET_LOGGING=1`** (and optionally **`-D MESH_DEBUG=1`**) connected to a Raspberry Pi or similar Linux host running [meshcoretomqtt](https://github.com/Cisien/meshcoretomqtt), the collector can now parse those MQTT feeds directly. No separate bridge container or `interface receiver-mc2mqtt` command is required anymore.
 
 #### How it works
 
@@ -229,29 +228,23 @@ flowchart LR
         RPT -->|USB serial| MC2MQTT
     end
 
-    SRCMQTT["MQTT Broker\n(source)"]
-    MC2MQTT -->|meshcore/SEA/KEY/packets\nmeshcore/SEA/KEY/status\nmeshcore/SEA/KEY/debug| SRCMQTT
+    MQTT["MQTT Broker"]
+    MC2MQTT -->|meshcore/SEA/KEY/packets\nmeshcore/SEA/KEY/status\nmeshcore/SEA/KEY/debug| MQTT
 
     subgraph Hub["MeshCore Hub Host"]
-        BRIDGE["interface receiver-mc2mqtt\n(bridge service)"]
-        MQTT["MQTT Broker\n(output)"]
         Collector
         API
         Web["Web Dashboard"]
 
-        BRIDGE -->|meshcore/KEY/event/advertisement\nmeshcore/KEY/event/packet_log\nmeshcore/KEY/event/debug_log| MQTT
         MQTT --> Collector --> API --> Web
     end
 
-    SRCMQTT -->|subscribe| BRIDGE
-
     style Remote fill:none,stroke:#0288d1,stroke-width:2px
     style Hub fill:none,stroke:#388e3c,stroke-width:2px
-    style SRCMQTT fill:none,stroke:#7b1fa2,stroke-width:2px
     style MQTT fill:none,stroke:#7b1fa2,stroke-width:3px
 ```
 
-The bridge translates meshcoretomqtt topics into the standard meshcore-hub event format:
+When `MQTT_MC2MQTT=true`, the collector normalizes meshcoretomqtt topics into the standard meshcore-hub events internally:
 
 | meshcoretomqtt topic | meshcore-hub event | Stored as |
 |---|---|---|
@@ -264,91 +257,53 @@ The bridge translates meshcoretomqtt topics into the standard meshcore-hub event
 Add the following to your `.env` file:
 
 ```bash
-# meshcoretomqtt source broker
-# (can be the same host as MQTT_HOST if both use the same broker)
-MC2MQTT_SOURCE_HOST=192.168.1.50   # Pi / broker where meshcoretomqtt publishes
-MC2MQTT_SOURCE_PORT=1883
-MC2MQTT_SOURCE_USERNAME=site_user  # optional, if the source broker requires auth
-MC2MQTT_SOURCE_PASSWORD=site_pass
-MC2MQTT_SOURCE_PREFIX=meshcore     # must match [topics] prefix in meshcoretomqtt config.toml
-
-# Optional: restrict to a single IATA location code; leave empty for all sites
-MC2MQTT_SOURCE_IATA=SEA
-
-# Output broker – where the meshcore-hub collector is listening
-# (usually the same as your regular MQTT_HOST / MQTT_PORT)
-MQTT_HOST=localhost
+# Broker where meshcoretomqtt publishes
+MQTT_HOST=192.168.1.50
 MQTT_PORT=1883
-MQTT_USERNAME=hub_user             # optional, if the output broker requires auth
+MQTT_USERNAME=hub_user             # optional, if the broker requires auth
 MQTT_PASSWORD=hub_pass
+MQTT_PREFIX=meshcore               # must match [topics] prefix in meshcoretomqtt config.toml
+
+# Enable collector-side MC2MQTT parsing
+MQTT_MC2MQTT=true
 ```
 
-Then start the bridge service alongside the core stack:
+Then start the core stack normally:
 
 ```bash
-# Central server with MQTT, core services, AND the mc2mqtt bridge
-docker compose --profile mqtt --profile core --profile mc2mqtt up -d
+# Central server with local MQTT plus core services
+docker compose --profile mqtt --profile core up -d
 
-# Or if the source and output brokers are the same external broker:
-docker compose --profile core --profile mc2mqtt up -d
+# Or connect the collector to an external broker that already receives
+# meshcoretomqtt topics
+docker compose --profile core up -d
 ```
 
-To monitor the bridge:
+To monitor the collector:
 
 ```bash
-docker compose logs -f interface-receiver-mc2mqtt
+docker compose logs -f collector
 ```
 
-#### Multiple Sites
+#### Topic and environment requirements
 
-Run one `interface-receiver-mc2mqtt` container per source broker.  Clone the service block in `docker-compose.yml` (or use `docker run`) for each additional site, overriding the `MC2MQTT_SOURCE_*` variables and `MC2MQTT_SOURCE_IATA`:
+The collector expects meshcoretomqtt's standard topic layout on the configured broker:
 
-```yaml
-# docker-compose.override.yml — second site (e.g., NYC)
-services:
-  interface-receiver-mc2mqtt-nyc:
-    extends:
-      service: interface-receiver-mc2mqtt
-    container_name: meshcore-interface-receiver-mc2mqtt-nyc
-    environment:
-      - MC2MQTT_SOURCE_HOST=192.168.2.50
-      - MC2MQTT_SOURCE_IATA=NYC
-```
+- `{prefix}/{IATA}/{KEY}/status`
+- `{prefix}/{IATA}/{KEY}/packets`
+- `{prefix}/{IATA}/{KEY}/debug`
 
-#### Manual Invocation
-
-Without Docker:
-
-```bash
-meshcore-hub interface receiver-mc2mqtt \
-  --source-mqtt-host 192.168.1.50 \
-  --source-mqtt-username site_user \
-  --source-mqtt-password site_pass \
-  --source-prefix meshcore \
-  --source-iata SEA \
-  --mqtt-host localhost \
-  --mqtt-username hub_user \
-  --mqtt-password hub_pass \
-  --prefix meshcore
-```
-
-All options are also available as environment variables:
+Relevant environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `MC2MQTT_SOURCE_HOST` | `localhost` | Hostname of MQTT broker where meshcoretomqtt publishes |
-| `MC2MQTT_SOURCE_PORT` | `1883` | Port of the source MQTT broker |
-| `MC2MQTT_SOURCE_USERNAME` | *(none)* | Username for source MQTT broker (optional) |
-| `MC2MQTT_SOURCE_PASSWORD` | *(none)* | Password for source MQTT broker (optional) |
-| `MC2MQTT_SOURCE_TLS` | `false` | Enable TLS/SSL for source MQTT connection |
-| `MC2MQTT_SOURCE_PREFIX` | `meshcore` | Topic prefix used by meshcoretomqtt (must match `[topics]` in its `config.toml`) |
-| `MC2MQTT_SOURCE_IATA` | *(none)* | Restrict to a single IATA code; omit to subscribe to all locations |
-| `MQTT_HOST` | `localhost` | Output broker hostname (where meshcore-hub collector listens) |
-| `MQTT_PORT` | `1883` | Output broker port |
-| `MQTT_USERNAME` | *(none)* | Output broker username (optional) |
-| `MQTT_PASSWORD` | *(none)* | Output broker password (optional) |
-| `MQTT_TLS` | `false` | Enable TLS/SSL for output MQTT connection |
-| `MQTT_PREFIX` | `meshcore` | Topic prefix for meshcore-hub output events |
+| `MQTT_HOST` | `localhost` | Broker hostname where meshcoretomqtt publishes |
+| `MQTT_PORT` | `1883` | Broker port |
+| `MQTT_USERNAME` | *(none)* | Broker username (optional) |
+| `MQTT_PASSWORD` | *(none)* | Broker password (optional) |
+| `MQTT_TLS` | `false` | Enable TLS/SSL for the broker connection |
+| `MQTT_PREFIX` | `meshcore` | Topic prefix used by meshcoretomqtt |
+| `MQTT_MC2MQTT` | `false` | Enable collector-side parsing of meshcoretomqtt feeds |
 
 ### Serial Device Access
 
@@ -436,10 +391,25 @@ All components are configured via environment variables. Create a `.env` file or
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `COLLECTOR_INGEST_MODE` | `native` | Ingest mode (`native` or `letsmesh_upload`) |
+| `MQTT_MC2MQTT` | `false` | Parse meshcoretomqtt topics on the configured MQTT broker |
 | `COLLECTOR_LETSMESH_DECODER_ENABLED` | `true` | Enable external LetsMesh packet decoding |
 | `COLLECTOR_LETSMESH_DECODER_COMMAND` | `meshcore-decoder` | Decoder CLI command |
 | `COLLECTOR_LETSMESH_DECODER_KEYS` | *(none)* | Additional decoder channel keys (`label=hex`, `label:hex`, or `hex`) |
 | `COLLECTOR_LETSMESH_DECODER_TIMEOUT_SECONDS` | `2.0` | Timeout per decoder invocation |
+
+#### MC2MQTT Compatibility Mode
+
+When `MQTT_MC2MQTT=true`, the collector subscribes to:
+
+- `<prefix>/+/+/packets`
+- `<prefix>/+/+/status`
+- `<prefix>/+/+/debug`
+
+Normalization behavior:
+
+- `status` packets are normalized to native `advertisement` events for repeater nodes.
+- `packets` packets are normalized to informational `packet_log` events.
+- `debug` packets are normalized to informational `debug_log` events.
 
 #### LetsMesh Upload Compatibility Mode
 

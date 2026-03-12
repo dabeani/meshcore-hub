@@ -147,6 +147,27 @@ class TopicBuilder:
 
         return (public_key, feed_type)
 
+    def parse_mc2mqtt_topic(self, topic: str) -> tuple[str, str, str] | None:
+        """Parse an MC2MQTT topic to extract IATA, public key, and feed type.
+
+        MC2MQTT topics are expected in this form:
+        <prefix>/<iata>/<public_key>/(packets|status|debug)
+        """
+        parts = [part for part in topic.strip("/").split("/") if part]
+        prefix_parts = self._prefix_parts()
+        prefix_len = len(prefix_parts)
+
+        if len(parts) != prefix_len + 3 or parts[:prefix_len] != prefix_parts:
+            return None
+
+        iata = parts[prefix_len]
+        public_key = parts[prefix_len + 1]
+        feed_type = parts[prefix_len + 2]
+        if feed_type not in {"packets", "status", "debug"}:
+            return None
+
+        return (iata, public_key, feed_type)
+
 
 MessageHandler = Callable[[str, str, dict[str, Any]], None]
 

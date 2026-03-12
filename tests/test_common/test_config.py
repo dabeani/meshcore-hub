@@ -83,6 +83,18 @@ class TestCollectorSettings:
 
         assert settings.collector_ingest_mode.value == "letsmesh_upload"
 
+    def test_mqtt_mc2mqtt_defaults_to_false(self) -> None:
+        """MC2MQTT collector parsing stays opt-in by default."""
+        settings = CollectorSettings(_env_file=None)
+
+        assert settings.mqtt_mc2mqtt is False
+
+    def test_mqtt_mc2mqtt_can_be_enabled(self) -> None:
+        """MC2MQTT collector parsing can be enabled explicitly."""
+        settings = CollectorSettings(_env_file=None, mqtt_mc2mqtt=True)
+
+        assert settings.mqtt_mc2mqtt is True
+
     def test_collector_letsmesh_decoder_keys_list(self) -> None:
         """LetsMesh decoder keys are parsed from comma/space-separated env values."""
         settings = CollectorSettings(
