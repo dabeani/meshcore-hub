@@ -190,6 +190,8 @@ Docker Compose uses **profiles** to select which services to run:
 
 **Note:** Most deployments connect to an external MQTT broker. Add `--profile mqtt` only if you need a local broker.
 
+By default, the compose file pulls `ghcr.io/dabeani/meshcore-hub:${IMAGE_VERSION}`. Set `IMAGE_NAME` in `.env` if you need to deploy a different registry/repository.
+
 ```bash
 # Create database schema
 docker compose --profile migrate run --rm db-migrate
