@@ -194,6 +194,466 @@ class TestSubscriber:
         assert payload["score"] == 1000
         assert payload["path"] == "C2 -> E2"
 
+    def test_mc2mqtt_packet_type_4_maps_to_advertisement(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 4 normalizes to advertisement events."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("advertisement", handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 4,
+                "payload": {
+                    "decoded": {
+                        "type": 4,
+                        "publicKey": "B" * 64,
+                        "appData": {
+                            "flags": 146,
+                            "deviceRole": 2,
+                            "location": {
+                                "latitude": 42.470001,
+                                "longitude": -71.330001,
+                            },
+                            "name": "Concord Attic G2",
+                        },
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "4",
+                    "hash": "A1B2C3D4",
+                    "raw": "010203",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "advertisement"
+        assert payload["public_key"] == "B" * 64
+        assert payload["name"] == "Concord Attic G2"
+        assert payload["adv_type"] == "repeater"
+        assert payload["flags"] == 146
+        assert payload["lat"] == 42.470001
+        assert payload["lon"] == -71.330001
+
+    def test_mc2mqtt_packet_type_5_maps_to_channel_message(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 5 normalizes to channel messages when decoded."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("channel_msg_recv", handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 5,
+                "payload": {
+                    "decoded": {
+                        "channelHash": "D9",
+                        "decrypted": {
+                            "sender": "Stephenbarz",
+                            "message": "hello mesh",
+                        },
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "5",
+                    "hash": "FEEDC0DE",
+                    "raw": "AABBCC",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "channel_msg_recv"
+        assert payload["text"] == "Stephenbarz: hello mesh"
+        assert payload["channel_idx"] == 217
+
+    @pytest.mark.parametrize("packet_type", ["2", "7"])
+    def test_mc2mqtt_contact_packet_types_map_to_contact_message(
+        self, mock_mqtt_client, db_manager, packet_type: str
+    ) -> None:
+        """MC2MQTT contact packet types map to contact messages when decoded."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("contact_msg_recv", handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": int(packet_type),
+                "payload": {
+                    "decoded": {
+                        "decrypted": {
+                            "message": "hello dm",
+                            "sender": "7CAF1337A58D",
+                        }
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": packet_type,
+                    "hash": "ABABAB1234",
+                    "raw": "010203",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "contact_msg_recv"
+        assert payload["text"] == "hello dm"
+        assert payload["pubkey_prefix"] == "7CAF1337A58D"
+
+    def test_mc2mqtt_packet_type_1_maps_to_contact_message_without_response_content(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 1 stays a contact message when content is plain text."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("contact_msg_recv", handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 1,
+                "payload": {
+                    "decoded": {
+                        "decrypted": {
+                            "message": "hello dm",
+                            "sender": "7CAF1337A58D",
+                        }
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "1",
+                    "hash": "ABABAB1234",
+                    "raw": "010203",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "contact_msg_recv"
+        assert payload["text"] == "hello dm"
+        assert payload["pubkey_prefix"] == "7CAF1337A58D"
+
+    def test_mc2mqtt_packet_type_1_maps_to_status_response(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 1 maps structured response content to status_response."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        packet_log_handler = MagicMock()
+        contact_handler = MagicMock()
+        subscriber.register_handler("status_response", handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.register_handler("contact_msg_recv", contact_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 1,
+                "payload": {
+                    "decoded": {
+                        "decrypted": {
+                            "content": (
+                                '{"status":"online","message_count":12,"uptime":34}'
+                            )
+                        }
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "1",
+                    "hash": "10293847",
+                    "raw": "010203",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        contact_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "status_response"
+        # Status responses normalize node public keys to uppercase for consistency.
+        assert payload["node_public_key"] == ("b" * 64).upper()
+        assert payload["status"] == "online"
+        assert payload["message_count"] == 12
+        assert payload["uptime"] == 34
+
+    def test_mc2mqtt_packet_type_11_maps_to_contact(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 11 maps to native contact events."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        contact_handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("contact", contact_handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 11,
+                "payload": {
+                    "decoded": {
+                        "type": 11,
+                        "publicKey": "C" * 64,
+                        "nodeType": 2,
+                        "nodeTypeName": "Repeater",
+                        "rawFlags": 146,
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "11",
+                    "hash": "E5F6A7B8",
+                    "raw": "040506",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        contact_handler.assert_called_once()
+        _public_key, event_type, payload, _db = contact_handler.call_args.args
+        assert event_type == "contact"
+        assert payload["public_key"] == "C" * 64
+        assert payload["type"] == 2
+        assert payload["flags"] == 146
+
+    def test_mc2mqtt_packet_type_9_maps_to_trace_data(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 9 maps to native trace_data events."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        trace_handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("trace_data", trace_handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 9,
+                "pathLength": 4,
+                "payload": {
+                    "decoded": {
+                        "type": 9,
+                        "traceTag": "DF9D7A20",
+                        "authCode": 0,
+                        "flags": 0,
+                        "pathHashes": ["71", "0B", "24", "0B"],
+                        "snrValues": [12.5, 11.5, 10, 6.25],
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "9",
+                    "hash": "99887766",
+                    "raw": "ABCDEF",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        trace_handler.assert_called_once()
+        _public_key, event_type, payload, _db = trace_handler.call_args.args
+        assert event_type == "trace_data"
+        assert payload["initiator_tag"] == int("DF9D7A20", 16)
+        assert payload["path_hashes"] == ["71", "0B", "24", "0B"]
+        assert payload["hop_count"] == 4
+        assert payload["snr_values"] == [12.5, 11.5, 10.0, 6.25]
+
+    def test_mc2mqtt_packet_type_8_maps_to_path_updated(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 8 maps to native path_updated events."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        path_handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("path_updated", path_handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 8,
+                "payload": {
+                    "decoded": {
+                        "type": 8,
+                        "isValid": True,
+                        "pathLength": 2,
+                        "pathHashes": ["AA", "BB"],
+                        "extraType": 244,
+                        "extraData": "D" * 64,
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "8",
+                    "hash": "99887766",
+                    "raw": "ABCDEF",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        path_handler.assert_called_once()
+        _public_key, event_type, payload, _db = path_handler.call_args.args
+        assert event_type == "path_updated"
+        assert payload["hop_count"] == 2
+        assert payload["path_hashes"] == ["AA", "BB"]
+        assert payload["extra_type"] == 244
+        assert payload["node_public_key"] == "D" * 64
+
     def test_mc2mqtt_debug_maps_to_debug_log(
         self, mock_mqtt_client, db_manager
     ) -> None:
@@ -529,6 +989,63 @@ class TestSubscriber:
         assert event_type == "contact_msg_recv"
         assert payload["text"] == "hello dm"
         assert payload["pubkey_prefix"] == "7CAF1337A58D"
+
+    def test_letsmesh_packet_type_1_maps_to_status_response(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """Structured response content on packet type 1 maps to status_response."""
+        mock_mqtt_client.topic_builder.parse_letsmesh_upload_topic.return_value = (
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="letsmesh_upload",
+        )
+        handler = MagicMock()
+        packet_handler = MagicMock()
+        contact_handler = MagicMock()
+        subscriber.register_handler("status_response", handler)
+        subscriber.register_handler("letsmesh_packet", packet_handler)
+        subscriber.register_handler("contact_msg_recv", contact_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 1,
+                "payload": {
+                    "decoded": {
+                        "decrypted": {
+                            "content": (
+                                '{"status":"online","message_count":12,"uptime":34}'
+                            )
+                        }
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/packets",
+                payload={
+                    "packet_type": "1",
+                    "hash": "ABABAB1234",
+                    "raw": "010203",
+                },
+            )
+
+        packet_handler.assert_not_called()
+        contact_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "a" * 64
+        assert event_type == "status_response"
+        assert payload["status"] == "online"
+        assert payload["message_count"] == 12
+        assert payload["uptime"] == 34
 
     def test_letsmesh_decoder_sender_name_prefixes_message_text(
         self, mock_mqtt_client, db_manager

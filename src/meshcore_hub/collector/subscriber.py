@@ -220,6 +220,31 @@ class Subscriber(LetsMeshNormalizer):
             return (event_public_key, "advertisement", normalized_payload)
 
         if feed_type == "packets":
+            decoded_packet = self._letsmesh_decoder.decode_payload(payload)
+
+            normalized_message = self._build_letsmesh_message_payload(
+                payload,
+                decoded_packet=decoded_packet,
+            )
+            if normalized_message:
+                event_type, message_payload = normalized_message
+                return event_public_key, event_type, message_payload
+
+            normalized_structured_event = self._build_letsmesh_structured_event_payload(
+                payload,
+                decoded_packet=decoded_packet,
+            )
+            if normalized_structured_event:
+                event_type, structured_payload = normalized_structured_event
+                return event_public_key, event_type, structured_payload
+
+            normalized_advertisement = self._build_letsmesh_advertisement_payload(
+                payload,
+                decoded_packet=decoded_packet,
+            )
+            if normalized_advertisement:
+                return event_public_key, "advertisement", normalized_advertisement
+
             normalized_payload = {
                 "hash": payload.get("hash"),
                 "direction": payload.get("direction"),
