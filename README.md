@@ -266,6 +266,8 @@ Add the following to your `.env` file:
 # (can be the same host as MQTT_HOST if both use the same broker)
 MC2MQTT_SOURCE_HOST=192.168.1.50   # Pi / broker where meshcoretomqtt publishes
 MC2MQTT_SOURCE_PORT=1883
+MC2MQTT_SOURCE_USERNAME=site_user  # optional, if the source broker requires auth
+MC2MQTT_SOURCE_PASSWORD=site_pass
 MC2MQTT_SOURCE_PREFIX=meshcore     # must match [topics] prefix in meshcoretomqtt config.toml
 
 # Optional: restrict to a single IATA location code; leave empty for all sites
@@ -275,6 +277,8 @@ MC2MQTT_SOURCE_IATA=SEA
 # (usually the same as your regular MQTT_HOST / MQTT_PORT)
 MQTT_HOST=localhost
 MQTT_PORT=1883
+MQTT_USERNAME=hub_user             # optional, if the output broker requires auth
+MQTT_PASSWORD=hub_pass
 ```
 
 Then start the bridge service alongside the core stack:
@@ -316,9 +320,13 @@ Without Docker:
 ```bash
 meshcore-hub interface receiver-mc2mqtt \
   --source-mqtt-host 192.168.1.50 \
+  --source-mqtt-username site_user \
+  --source-mqtt-password site_pass \
   --source-prefix meshcore \
   --source-iata SEA \
   --mqtt-host localhost \
+  --mqtt-username hub_user \
+  --mqtt-password hub_pass \
   --prefix meshcore
 ```
 
