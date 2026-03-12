@@ -545,6 +545,30 @@ class TestCreateReceiverMc2Mqtt:
             len(set(client_ids)) == 2
         ), "source and output must have different client IDs"
 
+    def test_source_and_output_auth_is_propagated(self) -> None:
+        created_configs: list[dict[str, Any]] = []
+
+        def _capture(**kwargs: Any) -> MagicMock:
+            created_configs.append(kwargs)
+            return MagicMock()
+
+        with patch(
+            "meshcore_hub.interface.receiver_meshcoretomqtt.MQTTConfig",
+            side_effect=_capture,
+        ):
+            with patch("meshcore_hub.interface.receiver_meshcoretomqtt.MQTTClient"):
+                create_receiver_mc2mqtt(
+                    source_mqtt_username="source-user",
+                    source_mqtt_password="source-pass",
+                    output_mqtt_username="output-user",
+                    output_mqtt_password="output-pass",
+                )
+
+        assert created_configs[0]["username"] == "source-user"
+        assert created_configs[0]["password"] == "source-pass"
+        assert created_configs[1]["username"] == "output-user"
+        assert created_configs[1]["password"] == "output-pass"
+
     def test_iata_filter_propagated(self) -> None:
         with (
             patch("meshcore_hub.interface.receiver_meshcoretomqtt.MQTTClient"),
