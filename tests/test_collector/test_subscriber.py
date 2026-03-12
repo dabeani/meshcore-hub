@@ -314,7 +314,7 @@ class TestSubscriber:
         assert payload["text"] == "Stephenbarz: hello mesh"
         assert payload["channel_idx"] == 217
 
-    @pytest.mark.parametrize("packet_type", ["1", "2", "7"])
+    @pytest.mark.parametrize("packet_type", ["2", "7"])
     def test_mc2mqtt_contact_packet_types_map_to_contact_message(
         self, mock_mqtt_client, db_manager, packet_type: str
     ) -> None:
@@ -356,6 +356,60 @@ class TestSubscriber:
                 payload={
                     "origin_id": "b" * 64,
                     "packet_type": packet_type,
+                    "hash": "ABABAB1234",
+                    "raw": "010203",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "contact_msg_recv"
+        assert payload["text"] == "hello dm"
+        assert payload["pubkey_prefix"] == "7CAF1337A58D"
+
+    def test_mc2mqtt_packet_type_1_maps_to_contact_message_without_response_content(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 1 stays a contact message when content is plain text."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("contact_msg_recv", handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 1,
+                "payload": {
+                    "decoded": {
+                        "decrypted": {
+                            "message": "hello dm",
+                            "sender": "7CAF1337A58D",
+                        }
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "1",
                     "hash": "ABABAB1234",
                     "raw": "010203",
                 },
@@ -424,7 +478,8 @@ class TestSubscriber:
         public_key, event_type, payload, _db = handler.call_args.args
         assert public_key == "b" * 64
         assert event_type == "status_response"
-        assert payload["node_public_key"] == "B" * 64
+        # Status responses normalize node public keys to uppercase for consistency.
+        assert payload["node_public_key"] == ("b" * 64).upper()
         assert payload["status"] == "online"
         assert payload["message_count"] == 12
         assert payload["uptime"] == 34

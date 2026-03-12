@@ -100,11 +100,15 @@ class LetsMeshNormalizer:
         if decoded_packet is None:
             decoded_packet = self._letsmesh_decoder.decode_payload(payload)
 
-        if (
+        has_structured_response = (
             packet_type == 1
             and self._extract_letsmesh_decoder_response_content_data(decoded_packet)
             is not None
-        ):
+        )
+        if has_structured_response:
+            # Type 1 packets can carry structured JSON responses in `content`.
+            # Let the response normalizer classify those as status/telemetry/etc.
+            # instead of surfacing the raw JSON as a contact message.
             return None
 
         # In LetsMesh compatibility mode, only show messages that decrypt.
