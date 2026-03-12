@@ -28,7 +28,7 @@ services:
   # Interface Receiver - MeshCore device to MQTT bridge (events)
   # ==========================================================================
   interface-receiver:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -65,7 +65,7 @@ services:
   # Interface Sender - MQTT to MeshCore device bridge (commands)
   # ==========================================================================
   interface-sender:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -107,7 +107,7 @@ services:
   # See https://github.com/Cisien/meshcoretomqtt
   # ==========================================================================
   interface-receiver-mc2mqtt:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -148,7 +148,7 @@ services:
   # Interface Mock Receiver - For testing without real devices
   # ==========================================================================
   interface-mock-receiver:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -181,7 +181,7 @@ services:
   # Collector - MQTT subscriber and database storage
   # ==========================================================================
   collector:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -243,7 +243,7 @@ services:
   # API Server - REST API for querying data and sending commands
   # ==========================================================================
   api:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -290,7 +290,7 @@ services:
   # Web Dashboard - Web interface for network visualization
   # ==========================================================================
   web:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -350,7 +350,7 @@ services:
   # Database Migrations - Run Alembic migrations
   # ==========================================================================
   db-migrate:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
@@ -373,7 +373,7 @@ services:
   # overwrite user changes.
   # ==========================================================================
   seed:
-    image: ghcr.io/ipnet-mesh/meshcore-hub:${IMAGE_VERSION:-latest}
+    image: ${IMAGE_NAME:-ghcr.io/dabeani/meshcore-hub}:${IMAGE_VERSION:-latest}
     build:
       context: .
       dockerfile: Dockerfile
