@@ -249,8 +249,10 @@ When `MQTT_MC2MQTT=true`, the collector normalizes meshcoretomqtt topics into th
 | meshcoretomqtt topic | meshcore-hub event | Stored as |
 |---|---|---|
 | `{prefix}/{IATA}/{KEY}/status` | `advertisement` | Node record (repeater type) |
-| `{prefix}/{IATA}/{KEY}/packets` | `packet_log` | `events_log` table (RF stats, hash, route) |
+| `{prefix}/{IATA}/{KEY}/packets` | `advertisement`, `channel_msg_recv`, `contact_msg_recv`, `status_response`, `trace_data`, `path_updated`, or `packet_log` | Native event tables when packet decoding succeeds, otherwise `events_log` |
 | `{prefix}/{IATA}/{KEY}/debug` | `debug_log` | `events_log` table (raw firmware text) |
+
+Packet feeds reuse the same decoder-backed normalization as LetsMesh upload mode. For example, decoded packet type `4` is treated as an `advertisement`, packet type `5` becomes `channel_msg_recv`, and unsupported or undecodable packets still fall back to `packet_log`.
 
 #### Docker Compose Example
 

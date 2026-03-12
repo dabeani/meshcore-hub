@@ -194,6 +194,126 @@ class TestSubscriber:
         assert payload["score"] == 1000
         assert payload["path"] == "C2 -> E2"
 
+    def test_mc2mqtt_packet_type_4_maps_to_advertisement(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 4 normalizes to advertisement events."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("advertisement", handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 4,
+                "payload": {
+                    "decoded": {
+                        "type": 4,
+                        "publicKey": "B" * 64,
+                        "appData": {
+                            "flags": 146,
+                            "deviceRole": 2,
+                            "location": {
+                                "latitude": 42.470001,
+                                "longitude": -71.330001,
+                            },
+                            "name": "Concord Attic G2",
+                        },
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "4",
+                    "hash": "A1B2C3D4",
+                    "raw": "010203",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "advertisement"
+        assert payload["public_key"] == "B" * 64
+        assert payload["name"] == "Concord Attic G2"
+        assert payload["adv_type"] == "repeater"
+        assert payload["flags"] == 146
+        assert payload["lat"] == 42.470001
+        assert payload["lon"] == -71.330001
+
+    def test_mc2mqtt_packet_type_5_maps_to_channel_message(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT packet type 5 normalizes to channel messages when decoded."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        packet_log_handler = MagicMock()
+        subscriber.register_handler("channel_msg_recv", handler)
+        subscriber.register_handler("packet_log", packet_log_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 5,
+                "payload": {
+                    "decoded": {
+                        "channelHash": "D9",
+                        "decrypted": {
+                            "sender": "Stephenbarz",
+                            "message": "hello mesh",
+                        },
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "5",
+                    "hash": "FEEDC0DE",
+                    "raw": "AABBCC",
+                },
+            )
+
+        packet_log_handler.assert_not_called()
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "channel_msg_recv"
+        assert payload["text"] == "Stephenbarz: hello mesh"
+        assert payload["channel_idx"] == 217
+
     def test_mc2mqtt_debug_maps_to_debug_log(
         self, mock_mqtt_client, db_manager
     ) -> None:
