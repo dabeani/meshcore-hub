@@ -49,6 +49,7 @@ class TestDashboardStats:
         self, client_no_auth, api_db_session
     ):
         """Dashboard channel groups do not collapse different region variants."""
+        fixed_time = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
         api_db_session.add_all(
             [
                 Message(
@@ -57,7 +58,7 @@ class TestDashboardStats:
                     channel_hash="11",
                     channel_region_flag=1,
                     text="Public region 1",
-                    received_at=datetime.now(timezone.utc),
+                    received_at=fixed_time,
                 ),
                 Message(
                     message_type="channel",
@@ -65,7 +66,7 @@ class TestDashboardStats:
                     channel_hash="11",
                     channel_region_flag=2,
                     text="Public region 2",
-                    received_at=datetime.now(timezone.utc),
+                    received_at=fixed_time,
                 ),
             ]
         )

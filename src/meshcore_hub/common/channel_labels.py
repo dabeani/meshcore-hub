@@ -21,7 +21,9 @@ def build_channel_labels() -> dict[int, str]:
     """Build channel labels from built-in and configured decoder keys."""
     decoder = LetsMeshPacketDecoder(
         enabled=False,
-        channel_keys=parse_decoder_key_entries(os.getenv("COLLECTOR_LETSMESH_DECODER_KEYS")),
+        channel_keys=parse_decoder_key_entries(
+            os.getenv("COLLECTOR_LETSMESH_DECODER_KEYS")
+        ),
     )
     return decoder.channel_labels_by_index()
 
@@ -33,7 +35,9 @@ def resolve_channel_label(
     """Resolve a configured label from channel index or hash."""
     labels = build_channel_labels()
 
-    normalized_hash = channel_hash.strip().upper() if isinstance(channel_hash, str) else ""
+    normalized_hash = (
+        channel_hash.strip().upper() if isinstance(channel_hash, str) else ""
+    )
     if normalized_hash:
         try:
             return labels.get(int(normalized_hash, 16))
@@ -57,7 +61,9 @@ def format_channel_label(
             return "Public"
         return cleaned if cleaned.startswith("#") else f"#{cleaned}"
 
-    resolved_label = resolve_channel_label(channel_idx=channel_idx, channel_hash=channel_hash)
+    resolved_label = resolve_channel_label(
+        channel_idx=channel_idx, channel_hash=channel_hash
+    )
     if resolved_label:
         return resolved_label
     if channel_idx is not None:
