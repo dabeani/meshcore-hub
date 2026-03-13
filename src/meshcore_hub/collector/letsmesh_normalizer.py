@@ -878,7 +878,11 @@ class LetsMeshNormalizer:
         cls,
         decoded_packet: dict[str, Any] | None,
     ) -> str | None:
-        """Extract channel hash (1/2/3-byte hex) from decoder output."""
+        """Extract MeshCore channel hash from decoder output.
+
+        MeshCore channel hashes may be 1, 2, or 3 bytes wide, represented as
+        2, 4, or 6 uppercase hex characters respectively.
+        """
         if not isinstance(decoded_packet, dict):
             return None
         payload = decoded_packet.get("payload")
@@ -941,7 +945,7 @@ class LetsMeshNormalizer:
 
     @staticmethod
     def _parse_channel_hash_idx(channel_hash: str) -> int | None:
-        """Convert a 1/2/3-byte channel hash hex string into a stable numeric index."""
+        """Convert a MeshCore 1/2/3-byte channel hash hex string to an int."""
         normalized = channel_hash.strip().upper()
         if len(normalized) not in {2, 4, 6}:
             return None

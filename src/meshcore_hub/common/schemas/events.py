@@ -81,7 +81,7 @@ class ChannelMessageEvent(BaseModel):
     channel_idx: int = Field(
         ...,
         ge=0,
-        description="Channel number or decoded stable channel hash index",
+        description="Channel index derived from the channel hash when available",
     )
     channel_hash: Optional[str] = Field(
         default=None,

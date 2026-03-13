@@ -21,7 +21,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     with op.batch_alter_table("messages", schema=None) as batch_op:
-        batch_op.add_column(sa.Column("channel_hash", sa.String(length=6), nullable=True))
+        batch_op.add_column(
+            sa.Column("channel_hash", sa.String(length=6), nullable=True)
+        )
         batch_op.add_column(
             sa.Column("channel_region_flag", sa.Integer(), nullable=True)
         )
