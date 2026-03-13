@@ -80,6 +80,60 @@ class TestDashboardStats:
         assert data["channel_messages"]["11@1"][0]["channel_name"] == "Public"
         assert data["channel_messages"]["11@2"][0]["channel_name"] == "Public"
 
+    def test_get_stats_hides_encrypted_channel_placeholders(
+        self, client_no_auth, api_db_session
+    ):
+        """Dashboard summaries omit encrypted channel placeholder entries."""
+        fixed_time = datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc)
+        api_db_session.add_all(
+            [
+                Message(
+                    message_type="channel",
+                    channel_idx=202,
+                    channel_hash="CAFE01",
+                    text="Encrypted channel message",
+                    received_at=fixed_time,
+                ),
+                Message(
+                    message_type="channel",
+                    channel_idx=202,
+                    channel_hash="CAFE01",
+                    text="Visible plaintext message",
+                    received_at=fixed_time + timedelta(minutes=1),
+                ),
+            ]
+        )
+        api_db_session.commit()
+
+        response = client_no_auth.get("/api/v1/dashboard/stats")
+        assert response.status_code == 200
+        data = response.json()
+        channel_messages = data["channel_messages"]["CAFE01"]
+        assert len(channel_messages) == 1
+        assert channel_messages[0]["text"] == "Visible plaintext message"
+
+    def test_get_stats_uses_bracketed_channel_name_hint(
+        self, client_no_auth, api_db_session
+    ):
+        """Dashboard prefers text prefix channel hints over generic Ch labels."""
+        api_db_session.add(
+            Message(
+                message_type="channel",
+                channel_idx=202,
+                channel_hash="CAFE01",
+                text="[Ops Net] Status update",
+                received_at=datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+            )
+        )
+        api_db_session.commit()
+
+        response = client_no_auth.get("/api/v1/dashboard/stats")
+        assert response.status_code == 200
+        data = response.json()
+        channel_message = data["channel_messages"]["CAFE01"][0]
+        assert channel_message["channel_name"] == "Ops Net"
+        assert channel_message["text"] == "Status update"
+
 
 class TestDashboardHtmlRemoved:
     """Tests that legacy HTML dashboard endpoint has been removed."""
