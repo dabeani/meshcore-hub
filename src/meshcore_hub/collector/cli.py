@@ -4,10 +4,14 @@ from typing import TYPE_CHECKING
 
 import click
 
+from meshcore_hub.common.config import CollectorIngestMode
 from meshcore_hub.common.logging import configure_logging
 
 if TYPE_CHECKING:
     from meshcore_hub.common.database import DatabaseManager
+
+
+INGEST_MODE_CHOICES = [mode.value for mode in CollectorIngestMode]
 
 
 @click.group(invoke_without_command=True)
@@ -80,7 +84,7 @@ if TYPE_CHECKING:
 @click.option(
     "--ingest-mode",
     "collector_ingest_mode",
-    type=click.Choice(["native", "mc2mqtt", "letsmesh_upload"], case_sensitive=False),
+    type=click.Choice(INGEST_MODE_CHOICES, case_sensitive=False),
     default="native",
     envvar="COLLECTOR_INGEST_MODE",
     help=(
