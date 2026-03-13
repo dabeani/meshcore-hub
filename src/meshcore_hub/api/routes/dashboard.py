@@ -21,16 +21,16 @@ from meshcore_hub.common.schemas.messages import (
 
 router = APIRouter()
 ENCRYPTED_CHANNEL_MESSAGE_PLACEHOLDER = "Encrypted channel message"
+GENERIC_PUBLIC_CHANNEL_NAME = "Public"
+GENERIC_CHANNEL_PREFIX = "Ch "
 
 
-def _channel_group_key(message: Message, channel_name: str | None) -> str:
+def _channel_group_key(message: Message) -> str:
     """Build a stable grouping key for dashboard channel sections."""
     if message.channel_hash:
         key = message.channel_hash.upper()
     elif message.channel_idx is not None:
         key = str(message.channel_idx)
-    elif channel_name:
-        key = channel_name
     else:
         key = "unknown"
 
@@ -55,6 +55,31 @@ def _extract_channel_name_from_message_text(text: str) -> tuple[str | None, str]
 
     inferred_text = stripped[close_idx + 1 :].lstrip()
     return inferred_name, inferred_text
+
+
+def _is_generic_channel_name(channel_name: str | None) -> bool:
+    """Return True when a channel label is only a generic fallback."""
+    if channel_name is None:
+        return True
+
+    normalized = channel_name.strip()
+    if not normalized:
+        return True
+
+    return normalized == GENERIC_PUBLIC_CHANNEL_NAME or normalized.startswith(
+        GENERIC_CHANNEL_PREFIX
+    )
+
+
+def _select_dashboard_channel_name(
+    channel_messages: list[ChannelMessage],
+) -> str | None:
+    """Choose the best display label for a dashboard channel group."""
+    for message in channel_messages:
+        if not _is_generic_channel_name(message.channel_name):
+            return message.channel_name
+
+    return channel_messages[0].channel_name if channel_messages else None
 
 
 @router.get("/stats", response_model=DashboardStats)
@@ -189,6 +214,7 @@ async def get_stats(
 
     # Get latest 5 messages for each distinct channel identity.
     channel_messages: dict[str, list[ChannelMessage]] = {}
+    channel_merge_keys: dict[tuple[str | None, int | None] | str, str] = {}
     channel_groups = session.execute(
         select(
             Message.channel_idx,
@@ -257,9 +283,8 @@ async def get_stats(
                 m.text
             )
             message_text = inferred_text if inferred_name else m.text
-            if inferred_name:
-                if channel_name is None or channel_name.startswith("Ch "):
-                    channel_name = inferred_name
+            if inferred_name and _is_generic_channel_name(channel_name):
+                channel_name = inferred_name
             grouped_messages.append(
                 ChannelMessage(
                     text=message_text,
@@ -280,9 +305,29 @@ async def get_stats(
             )
 
         if grouped_messages:
-            channel_messages[
-                _channel_group_key(channel_msgs[0], grouped_messages[0].channel_name)
-            ] = grouped_messages
+            selected_channel_name = _select_dashboard_channel_name(grouped_messages)
+            if selected_channel_name and any(
+                _is_generic_channel_name(message.channel_name)
+                for message in grouped_messages
+            ):
+                for message in grouped_messages:
+                    if _is_generic_channel_name(message.channel_name):
+                        message.channel_name = selected_channel_name
+
+            stable_group_key = _channel_group_key(channel_msgs[0])
+            merge_key: tuple[str | None, int | None] | str = (
+                (selected_channel_name, channel_region_flag)
+                if selected_channel_name
+                and not _is_generic_channel_name(selected_channel_name)
+                else stable_group_key
+            )
+            target_key = channel_merge_keys.setdefault(merge_key, stable_group_key)
+            existing_messages = channel_messages.get(target_key, [])
+            channel_messages[target_key] = sorted(
+                [*existing_messages, *grouped_messages],
+                key=lambda message: message.received_at,
+                reverse=True,
+            )[:5]
 
     return DashboardStats(
         total_nodes=total_nodes,
