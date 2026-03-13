@@ -81,8 +81,15 @@ class ChannelMessageEvent(BaseModel):
     channel_idx: int = Field(
         ...,
         ge=0,
-        le=255,
-        description="Channel number (0-255)",
+        description="Channel number or decoded stable channel hash index",
+    )
+    channel_hash: Optional[str] = Field(
+        default=None,
+        description="Full MeshCore channel hash (1/2/3 bytes as hex)",
+    )
+    channel_region_flag: Optional[int] = Field(
+        default=None,
+        description="Per-channel region flag when present",
     )
     text: str = Field(..., description="Message content")
     path_len: Optional[int] = Field(

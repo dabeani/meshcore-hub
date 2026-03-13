@@ -26,7 +26,7 @@ class LetsMeshPacketDecoder:
 
         label: str | None
         key_hex: str
-        channel_hash: str
+        channel_hashes: tuple[str, ...]
 
     # Built-in keys required by your deployment.
     # - Public channel
@@ -47,11 +47,12 @@ class LetsMeshPacketDecoder:
         self._command_tokens = shlex.split(command.strip()) if command.strip() else []
         self._channel_key_infos = self._normalize_channel_keys(channel_keys or [])
         self._channel_keys = [info.key_hex for info in self._channel_key_infos]
-        self._channel_names_by_hash = {
-            info.channel_hash: info.label
-            for info in self._channel_key_infos
-            if info.label
-        }
+        self._channel_names_by_hash = {}
+        for info in self._channel_key_infos:
+            if not info.label:
+                continue
+            for channel_hash in info.channel_hashes:
+                self._channel_names_by_hash[channel_hash] = info.label
         self._decode_cache: dict[str, dict[str, Any] | None] = {}
         self._decode_cache_maxsize = 2048
         self._timeout_seconds = timeout_seconds
@@ -114,12 +115,12 @@ class LetsMeshPacketDecoder:
             return None
 
         key_hex = key_candidate.upper()
-        channel_hash = cls._compute_channel_hash(key_hex)
+        channel_hashes = cls._compute_channel_hashes(key_hex)
         normalized_label = label.strip() if label and label.strip() else None
         return cls.ChannelKey(
             label=normalized_label,
             key_hex=key_hex,
-            channel_hash=channel_hash,
+            channel_hashes=channel_hashes,
         )
 
     @staticmethod
@@ -128,9 +129,18 @@ class LetsMeshPacketDecoder:
         return bool(value) and all(char in string.hexdigits for char in value)
 
     @staticmethod
-    def _compute_channel_hash(key_hex: str) -> str:
-        """Compute channel hash (first byte of SHA-256 of channel key)."""
-        return hashlib.sha256(bytes.fromhex(key_hex)).digest()[:1].hex().upper()
+    def _compute_channel_hash(key_hex: str, hash_bytes: int = 1) -> str:
+        """Compute a 1/2/3-byte channel hash from the channel key."""
+        return (
+            hashlib.sha256(bytes.fromhex(key_hex)).digest()[:hash_bytes].hex().upper()
+        )
+
+    @classmethod
+    def _compute_channel_hashes(cls, key_hex: str) -> tuple[str, ...]:
+        """Compute all currently supported MeshCore channel-hash sizes."""
+        return tuple(
+            cls._compute_channel_hash(key_hex, hash_bytes) for hash_bytes in (1, 2, 3)
+        )
 
     def channel_name_from_decoded(
         self,
@@ -155,7 +165,7 @@ class LetsMeshPacketDecoder:
         return self._channel_names_by_hash.get(channel_hash.upper())
 
     def channel_labels_by_index(self) -> dict[int, str]:
-        """Return channel labels keyed by numeric channel index (0-255)."""
+        """Return channel labels keyed by numeric channel index."""
         labels: dict[int, str] = {}
         for info in self._channel_key_infos:
             if not info.label:
@@ -170,8 +180,9 @@ class LetsMeshPacketDecoder:
             else:
                 normalized_label = label if label.startswith("#") else f"#{label}"
 
-            channel_idx = int(info.channel_hash, 16)
-            labels.setdefault(channel_idx, normalized_label)
+            for channel_hash in info.channel_hashes:
+                channel_idx = int(channel_hash, 16)
+                labels.setdefault(channel_idx, normalized_label)
 
         return labels
 

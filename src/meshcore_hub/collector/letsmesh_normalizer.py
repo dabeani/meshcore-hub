@@ -175,10 +175,17 @@ class LetsMeshNormalizer:
 
         channel_idx = self._parse_int(payload.get("channel_idx"))
         channel_hash = self._extract_letsmesh_decoder_channel_hash(decoded_packet)
+        channel_region_flag = self._extract_letsmesh_decoder_channel_region_flag(
+            decoded_packet
+        )
         if channel_idx is None and channel_hash:
             channel_idx = self._parse_channel_hash_idx(channel_hash)
         if channel_idx is not None:
             normalized_payload["channel_idx"] = channel_idx
+        if channel_hash:
+            normalized_payload["channel_hash"] = channel_hash
+        if channel_region_flag is not None:
+            normalized_payload["channel_region_flag"] = channel_region_flag
 
         if event_type == "channel_msg_recv":
             channel_name = self._letsmesh_decoder.channel_name_from_decoded(
@@ -871,7 +878,7 @@ class LetsMeshNormalizer:
         cls,
         decoded_packet: dict[str, Any] | None,
     ) -> str | None:
-        """Extract channel hash (1-byte hex) from decoder output."""
+        """Extract channel hash (1/2/3-byte hex) from decoder output."""
         if not isinstance(decoded_packet, dict):
             return None
         payload = decoded_packet.get("payload")
@@ -884,11 +891,27 @@ class LetsMeshNormalizer:
         if not isinstance(channel_hash, str):
             return None
         normalized = channel_hash.strip().upper()
-        if len(normalized) != 2:
+        if len(normalized) not in {2, 4, 6}:
             return None
         if any(ch not in "0123456789ABCDEF" for ch in normalized):
             return None
         return normalized
+
+    @classmethod
+    def _extract_letsmesh_decoder_channel_region_flag(
+        cls,
+        decoded_packet: dict[str, Any] | None,
+    ) -> int | None:
+        """Extract per-channel region flag from decoder output when present."""
+        if not isinstance(decoded_packet, dict):
+            return None
+        payload = decoded_packet.get("payload")
+        if not isinstance(payload, dict):
+            return None
+        decoded = payload.get("decoded")
+        if not isinstance(decoded, dict):
+            return None
+        return cls._parse_int(decoded.get("regionFlag"))
 
     @staticmethod
     def _normalize_full_public_key(value: Any) -> str | None:
@@ -918,9 +941,9 @@ class LetsMeshNormalizer:
 
     @staticmethod
     def _parse_channel_hash_idx(channel_hash: str) -> int | None:
-        """Convert 1-byte channel hash hex string into a stable numeric index."""
+        """Convert a 1/2/3-byte channel hash hex string into a stable numeric index."""
         normalized = channel_hash.strip().upper()
-        if len(normalized) != 2:
+        if len(normalized) not in {2, 4, 6}:
             return None
         if any(ch not in "0123456789ABCDEF" for ch in normalized):
             return None

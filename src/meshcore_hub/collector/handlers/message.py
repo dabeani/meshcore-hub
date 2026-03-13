@@ -72,6 +72,10 @@ def _handle_message(
     # Extract fields based on message type
     pubkey_prefix = payload.get("pubkey_prefix")
     channel_idx = payload.get("channel_idx") if message_type == "channel" else None
+    channel_hash = payload.get("channel_hash") if message_type == "channel" else None
+    channel_region_flag = (
+        payload.get("channel_region_flag") if message_type == "channel" else None
+    )
     path_len = payload.get("path_len")
     txt_type = payload.get("txt_type")
     signature = payload.get("signature")
@@ -91,6 +95,8 @@ def _handle_message(
         text=text,
         pubkey_prefix=pubkey_prefix,
         channel_idx=channel_idx,
+        channel_hash=channel_hash,
+        channel_region_flag=channel_region_flag,
         sender_timestamp=sender_timestamp,
         txt_type=txt_type,
     )
@@ -142,6 +148,8 @@ def _handle_message(
             message_type=message_type,
             pubkey_prefix=pubkey_prefix,
             channel_idx=channel_idx,
+            channel_hash=channel_hash,
+            channel_region_flag=channel_region_flag,
             text=text,
             path_len=path_len,
             txt_type=txt_type,

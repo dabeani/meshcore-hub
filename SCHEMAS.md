@@ -135,6 +135,8 @@ Group/broadcast messages on specific channels.
 ```json
 {
   "channel_idx": "integer (optional)",
+  "channel_hash": "string (optional)",
+  "channel_region_flag": "integer (optional)",
   "channel_name": "string (optional)",
   "pubkey_prefix": "string (12 chars, optional)",
   "path_len": "integer (optional)",
@@ -147,7 +149,9 @@ Group/broadcast messages on specific channels.
 ```
 
 **Field Descriptions**:
-- `channel_idx`: Channel number (0-255) when available
+- `channel_idx`: Channel number or stable hash-derived index when available
+- `channel_hash`: Full MeshCore channel hash when decoder/native MQTT data includes it (1, 2, or 3 bytes encoded as 2/4/6 uppercase hex chars)
+- `channel_region_flag`: Per-channel region flag when decoder/native MQTT data includes it
 - `channel_name`: Channel display label (e.g., `"Public"`, `"#test"`) when available
 - `pubkey_prefix`: First 12 characters of sender's public key when available
 - `path_len`: Number of hops message traveled
@@ -160,7 +164,9 @@ Group/broadcast messages on specific channels.
 **Example**:
 ```json
 {
-  "channel_idx": 4,
+  "channel_idx": 10597059,
+  "channel_hash": "A1B2C3",
+  "channel_region_flag": 4660,
   "path_len": 10,
   "txt_type": 0,
   "signature": null,
@@ -179,8 +185,9 @@ Group/broadcast messages on specific channels.
 **Compatibility ingest note**:
 - In LetsMesh upload compatibility mode, packet type `5` is normalized to `CHANNEL_MSG_RECV` and packet types `1`, `2`, and `7` are normalized to `CONTACT_MSG_RECV` when decryptable text is available.
 - LetsMesh packets without decryptable message text are treated as informational `letsmesh_packet` events instead of message events.
-- For UI labels, known channel indexes are mapped (`17 -> Public`, `217 -> #test`) and preferred over ambiguous/stale channel-name hints.
+- For UI labels, known channel indexes are mapped for all supported MeshCore channel hash sizes (1/2/3 bytes) and preferred over ambiguous/stale channel-name hints.
 - Additional channel labels can be provided through `COLLECTOR_LETSMESH_DECODER_KEYS` using `label=hex` entries.
+- Decoder-backed ingest preserves `channel_hash` and `channel_region_flag` so planned channel integration can distinguish regionalized non-private channels and multibyte hashes.
 - When decoder output includes a human sender (`payload.decoded.decrypted.sender`), message text is normalized to `Name: Message`; sender identity remains unknown when only hash/prefix metadata is available.
 
 **Compatibility ingest note (advertisements)**:

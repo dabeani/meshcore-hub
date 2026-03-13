@@ -313,6 +313,61 @@ class TestSubscriber:
         assert event_type == "channel_msg_recv"
         assert payload["text"] == "Stephenbarz: hello mesh"
         assert payload["channel_idx"] == 217
+        assert payload["channel_hash"] == "D9"
+
+    def test_mc2mqtt_packet_type_5_preserves_multibyte_channel_hash_and_region(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """MC2MQTT channel packets keep full channel hash and region metadata."""
+        mock_mqtt_client.topic_builder.parse_mc2mqtt_topic.return_value = (
+            "BOS",
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="mc2mqtt",
+        )
+        handler = MagicMock()
+        subscriber.register_handler("channel_msg_recv", handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 5,
+                "payload": {
+                    "decoded": {
+                        "channelHash": "A1B2C3",
+                        "regionFlag": 4660,
+                        "decrypted": {
+                            "sender": "Stephenbarz",
+                            "message": "hello mesh",
+                        },
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/+/packets",
+                payload={
+                    "origin_id": "b" * 64,
+                    "packet_type": "5",
+                    "hash": "FEEDC0DE",
+                    "raw": "AABBCC",
+                },
+            )
+
+        handler.assert_called_once()
+        public_key, event_type, payload, _db = handler.call_args.args
+        assert public_key == "b" * 64
+        assert event_type == "channel_msg_recv"
+        assert payload["channel_hash"] == "A1B2C3"
+        assert payload["channel_idx"] == int("A1B2C3", 16)
+        assert payload["channel_region_flag"] == 4660
 
     @pytest.mark.parametrize("packet_type", ["2", "7"])
     def test_mc2mqtt_contact_packet_types_map_to_contact_message(
@@ -939,6 +994,7 @@ class TestSubscriber:
         assert payload["txt_type"] == 5
         assert payload["path_len"] == 4
         assert payload["channel_idx"] == 170
+        assert payload["channel_hash"] == "AA"
         assert payload["pubkey_prefix"] == "ABCD1234"
 
     def test_letsmesh_packet_type_1_maps_to_contact_message(

@@ -321,6 +321,8 @@ def sample_message_with_receiver(api_db_session, receiver_node):
     message = Message(
         message_type="channel",
         channel_idx=1,
+        channel_hash="A1B2C3",
+        channel_region_flag=4660,
         pubkey_prefix="xyz789",
         text="Channel message with receiver",
         received_at=datetime.now(timezone.utc),

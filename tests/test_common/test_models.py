@@ -89,6 +89,8 @@ class TestMessageModel:
         message = Message(
             message_type="channel",
             channel_idx=4,
+            channel_hash="A1B2C3",
+            channel_region_flag=4660,
             text="Channel broadcast",
             path_len=10,
         )
@@ -96,6 +98,8 @@ class TestMessageModel:
         db_session.commit()
 
         assert message.channel_idx == 4
+        assert message.channel_hash == "A1B2C3"
+        assert message.channel_region_flag == 4660
         assert message.message_type == "channel"
 
 
