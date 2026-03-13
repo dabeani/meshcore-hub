@@ -60,11 +60,7 @@ export function resolveChannelLabel(channelIdx, channelLabels = getChannelLabels
 export function inferChannelHashBytes(channelHash, channelIdx = null) {
     if (typeof channelHash === 'string') {
         const normalized = channelHash.trim().toUpperCase();
-        if (
-            /^[0-9A-F]{2}$/.test(normalized)
-            || /^[0-9A-F]{4}$/.test(normalized)
-            || /^[0-9A-F]{6}$/.test(normalized)
-        ) {
+        if (/^[0-9A-F]{2}(?:[0-9A-F]{2}){0,2}$/.test(normalized)) {
             return normalized.length / 2;
         }
     }

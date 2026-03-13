@@ -54,8 +54,9 @@ export async function render(container, params, router) {
             };
         }
         if (msg.channel_idx !== null && msg.channel_idx !== undefined) {
+            const knownLabel = resolveChannelLabel(msg.channel_idx, channelLabels);
             return {
-                label: `Ch ${msg.channel_idx}`,
+                label: knownLabel || `Ch ${msg.channel_idx}`,
                 text: rawText || '-',
                 hashBadge,
                 regionBadge,
