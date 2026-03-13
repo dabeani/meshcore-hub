@@ -80,9 +80,7 @@ if TYPE_CHECKING:
 @click.option(
     "--ingest-mode",
     "collector_ingest_mode",
-    type=click.Choice(
-        ["native", "mc2mqtt", "letsmesh_upload"], case_sensitive=False
-    ),
+    type=click.Choice(["native", "mc2mqtt", "letsmesh_upload"], case_sensitive=False),
     default="native",
     envvar="COLLECTOR_INGEST_MODE",
     help=(
