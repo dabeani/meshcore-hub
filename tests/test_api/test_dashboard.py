@@ -134,6 +134,65 @@ class TestDashboardStats:
         assert channel_message["channel_name"] == "Ops Net"
         assert channel_message["text"] == "Status update"
 
+    def test_get_stats_prefers_specific_hashtag_hint_over_public_label(
+        self, client_no_auth, api_db_session
+    ):
+        """Dashboard prefers bracketed hashtag labels over generic Public fallback."""
+        api_db_session.add(
+            Message(
+                message_type="channel",
+                channel_idx=17,
+                channel_hash="11",
+                text="[#ops] Status update",
+                received_at=datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+            )
+        )
+        api_db_session.commit()
+
+        response = client_no_auth.get("/api/v1/dashboard/stats")
+        assert response.status_code == 200
+        data = response.json()
+        channel_message = data["channel_messages"]["11"][0]
+        assert channel_message["channel_name"] == "#ops"
+        assert channel_message["text"] == "Status update"
+
+    def test_get_stats_merges_named_channel_groups_with_missing_hash_metadata(
+        self, client_no_auth, api_db_session
+    ):
+        """Dashboard collapses duplicate named hashtag channel groups."""
+        api_db_session.add_all(
+            [
+                Message(
+                    message_type="channel",
+                    channel_idx=17,
+                    channel_hash="11",
+                    text="[#ops] Latest status",
+                    received_at=datetime(2024, 1, 1, 12, 1, tzinfo=timezone.utc),
+                ),
+                Message(
+                    message_type="channel",
+                    channel_idx=17,
+                    channel_hash=None,
+                    text="[#ops] Earlier status",
+                    received_at=datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+                ),
+            ]
+        )
+        api_db_session.commit()
+
+        response = client_no_auth.get("/api/v1/dashboard/stats")
+        assert response.status_code == 200
+        data = response.json()
+        channel_messages = data["channel_messages"]
+
+        assert len(channel_messages) == 1
+        merged_messages = next(iter(channel_messages.values()))
+        assert [msg["text"] for msg in merged_messages] == [
+            "Latest status",
+            "Earlier status",
+        ]
+        assert all(msg["channel_name"] == "#ops" for msg in merged_messages)
+
 
 class TestDashboardHtmlRemoved:
     """Tests that legacy HTML dashboard endpoint has been removed."""
