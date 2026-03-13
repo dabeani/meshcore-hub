@@ -98,13 +98,14 @@ class TestListMessagesFilters:
     def test_channel_metadata_is_exposed(
         self, client_no_auth, sample_message_with_receiver
     ):
-        """Channel hash and region metadata are returned for channel messages."""
+        """Channel hash, region, and label metadata are returned for channel messages."""
         response = client_no_auth.get("/api/v1/messages?channel_idx=1")
         assert response.status_code == 200
         data = response.json()
         assert len(data["items"]) == 1
         assert data["items"][0]["channel_hash"] == "A1B2C3"
         assert data["items"][0]["channel_region_flag"] == 4660
+        assert data["items"][0]["channel_name"] == "Ch 1"
 
     def test_filter_by_received_by(
         self,

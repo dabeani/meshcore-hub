@@ -7,6 +7,7 @@ from sqlalchemy import func, select
 
 from meshcore_hub.api.auth import RequireRead
 from meshcore_hub.api.dependencies import DbSession
+from meshcore_hub.common.channel_labels import format_channel_label
 from meshcore_hub.common.models import Advertisement, Message, Node, NodeTag
 from meshcore_hub.common.schemas.messages import (
     ChannelMessage,
@@ -19,6 +20,22 @@ from meshcore_hub.common.schemas.messages import (
 )
 
 router = APIRouter()
+
+
+def _channel_group_key(message: Message, channel_name: str | None) -> str:
+    """Build a stable grouping key for dashboard channel sections."""
+    if message.channel_hash:
+        key = message.channel_hash.upper()
+    elif message.channel_idx is not None:
+        key = str(message.channel_idx)
+    elif channel_name:
+        key = channel_name
+    else:
+        key = "unknown"
+
+    if message.channel_region_flag is not None:
+        return f"{key}@{message.channel_region_flag}"
+    return key
 
 
 @router.get("/stats", response_model=DashboardStats)
@@ -151,13 +168,36 @@ async def get_stats(
         int(channel): int(count) for channel, count in channel_results
     }
 
-    # Get latest 5 messages for each channel that has messages
-    channel_messages: dict[int, list[ChannelMessage]] = {}
-    for channel_idx, _ in channel_results:
+    # Get latest 5 messages for each distinct channel identity.
+    channel_messages: dict[str, list[ChannelMessage]] = {}
+    channel_groups = session.execute(
+        select(
+            Message.channel_idx,
+            Message.channel_hash,
+            Message.channel_region_flag,
+        )
+        .where(Message.message_type == "channel")
+        .group_by(
+            Message.channel_idx,
+            Message.channel_hash,
+            Message.channel_region_flag,
+        )
+    ).all()
+    for channel_idx, channel_hash, channel_region_flag in channel_groups:
         messages_query = (
             select(Message)
             .where(Message.message_type == "channel")
             .where(Message.channel_idx == channel_idx)
+            .where(
+                Message.channel_hash.is_(None)
+                if channel_hash is None
+                else Message.channel_hash == channel_hash
+            )
+            .where(
+                Message.channel_region_flag.is_(None)
+                if channel_region_flag is None
+                else Message.channel_region_flag == channel_region_flag
+            )
             .order_by(Message.received_at.desc())
             .limit(5)
         )
@@ -185,22 +225,36 @@ async def get_stats(
                 for public_key, value in session.execute(sender_tag_query).all():
                     msg_tag_names[public_key[:12]] = value
 
-        channel_messages[int(channel_idx)] = [
-            ChannelMessage(
-                text=m.text,
-                sender_name=(
-                    msg_sender_names.get(m.pubkey_prefix) if m.pubkey_prefix else None
-                ),
-                sender_tag_name=(
-                    msg_tag_names.get(m.pubkey_prefix) if m.pubkey_prefix else None
-                ),
-                pubkey_prefix=m.pubkey_prefix,
+        grouped_messages: list[ChannelMessage] = []
+        for m in channel_msgs:
+            channel_name = format_channel_label(
+                channel_name=None,
                 channel_hash=m.channel_hash,
-                channel_region_flag=m.channel_region_flag,
-                received_at=m.received_at,
+                channel_idx=m.channel_idx,
             )
-            for m in channel_msgs
-        ]
+            grouped_messages.append(
+                ChannelMessage(
+                    text=m.text,
+                    sender_name=(
+                        msg_sender_names.get(m.pubkey_prefix)
+                        if m.pubkey_prefix
+                        else None
+                    ),
+                    sender_tag_name=(
+                        msg_tag_names.get(m.pubkey_prefix) if m.pubkey_prefix else None
+                    ),
+                    pubkey_prefix=m.pubkey_prefix,
+                    channel_name=channel_name,
+                    channel_hash=m.channel_hash,
+                    channel_region_flag=m.channel_region_flag,
+                    received_at=m.received_at,
+                )
+            )
+
+        if grouped_messages:
+            channel_messages[
+                _channel_group_key(channel_msgs[0], grouped_messages[0].channel_name)
+            ] = grouped_messages
 
     return DashboardStats(
         total_nodes=total_nodes,

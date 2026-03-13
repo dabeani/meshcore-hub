@@ -9,6 +9,7 @@ from sqlalchemy.orm import aliased, selectinload
 
 from meshcore_hub.api.auth import RequireRead
 from meshcore_hub.api.dependencies import DbSession
+from meshcore_hub.common.channel_labels import format_channel_label
 from meshcore_hub.common.models import EventReceiver, Message, Node, NodeTag
 from meshcore_hub.common.schemas.messages import MessageList, MessageRead, ReceiverInfo
 
@@ -226,6 +227,11 @@ async def list_messages(
             "channel_idx": m.channel_idx,
             "channel_hash": m.channel_hash,
             "channel_region_flag": m.channel_region_flag,
+            "channel_name": format_channel_label(
+                channel_name=None,
+                channel_hash=m.channel_hash,
+                channel_idx=m.channel_idx,
+            ),
             "text": m.text,
             "path_len": m.path_len,
             "txt_type": m.txt_type,
@@ -285,6 +291,11 @@ async def get_message(
         "channel_idx": message.channel_idx,
         "channel_hash": message.channel_hash,
         "channel_region_flag": message.channel_region_flag,
+        "channel_name": format_channel_label(
+            channel_name=None,
+            channel_hash=message.channel_hash,
+            channel_idx=message.channel_idx,
+        ),
         "text": message.text,
         "path_len": message.path_len,
         "txt_type": message.txt_type,

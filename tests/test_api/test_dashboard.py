@@ -37,12 +37,47 @@ class TestDashboardStats:
     def test_get_stats_includes_channel_region_metadata(
         self, client_no_auth, sample_message_with_receiver
     ):
-        """Channel summaries keep channel hash and region metadata for the UI."""
+        """Channel summaries keep channel hash, region, and label metadata."""
         response = client_no_auth.get("/api/v1/dashboard/stats")
         assert response.status_code == 200
         data = response.json()
-        assert data["channel_messages"]["1"][0]["channel_hash"] == "A1B2C3"
-        assert data["channel_messages"]["1"][0]["channel_region_flag"] == 4660
+        assert data["channel_messages"]["A1B2C3@4660"][0]["channel_hash"] == "A1B2C3"
+        assert data["channel_messages"]["A1B2C3@4660"][0]["channel_region_flag"] == 4660
+        assert data["channel_messages"]["A1B2C3@4660"][0]["channel_name"] == "Ch 1"
+
+    def test_get_stats_keeps_region_variants_separate(
+        self, client_no_auth, api_db_session
+    ):
+        """Dashboard channel groups do not collapse different region variants."""
+        api_db_session.add_all(
+            [
+                Message(
+                    message_type="channel",
+                    channel_idx=17,
+                    channel_hash="11",
+                    channel_region_flag=1,
+                    text="Public region 1",
+                    received_at=datetime.now(timezone.utc),
+                ),
+                Message(
+                    message_type="channel",
+                    channel_idx=17,
+                    channel_hash="11",
+                    channel_region_flag=2,
+                    text="Public region 2",
+                    received_at=datetime.now(timezone.utc),
+                ),
+            ]
+        )
+        api_db_session.commit()
+
+        response = client_no_auth.get("/api/v1/dashboard/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert "11@1" in data["channel_messages"]
+        assert "11@2" in data["channel_messages"]
+        assert data["channel_messages"]["11@1"][0]["channel_name"] == "Public"
+        assert data["channel_messages"]["11@2"][0]["channel_name"] == "Public"
 
 
 class TestDashboardHtmlRemoved:

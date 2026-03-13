@@ -51,6 +51,10 @@ class MessageRead(BaseModel):
         default=None,
         description="Per-channel region flag when present",
     )
+    channel_name: Optional[str] = Field(
+        default=None,
+        description="Resolved display label for the channel",
+    )
     text: str = Field(..., description="Message content")
     path_len: Optional[int] = Field(default=None, description="Number of hops")
     txt_type: Optional[int] = Field(default=None, description="Message type indicator")
@@ -240,6 +244,10 @@ class ChannelMessage(BaseModel):
     pubkey_prefix: Optional[str] = Field(
         default=None, description="Sender public key prefix"
     )
+    channel_name: Optional[str] = Field(
+        default=None,
+        description="Resolved display label for the channel",
+    )
     channel_hash: Optional[str] = Field(
         default=None,
         description="Full MeshCore channel hash (1/2/3 bytes as hex)",
@@ -273,7 +281,7 @@ class DashboardStats(BaseModel):
         default_factory=dict,
         description="Message count per channel",
     )
-    channel_messages: dict[int, list[ChannelMessage]] = Field(
+    channel_messages: dict[str, list[ChannelMessage]] = Field(
         default_factory=dict,
         description="Recent messages per channel (up to 5 each)",
     )
