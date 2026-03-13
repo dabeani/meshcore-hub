@@ -3,6 +3,7 @@ import {
     html, litRender, nothing, t,
     getConfig, formatDateTime, formatDateTimeShort,
     getChannelLabelsMap, resolveChannelLabel,
+    getChannelHashBadgeLabel, getChannelRegionBadgeLabel,
     truncateKey, errorAlert,
     pagination, timezoneIndicator,
     createFilterHandler, autoSubmit, submitOnEnter
@@ -23,8 +24,10 @@ export async function render(container, params, router) {
     const navigate = (url) => router.navigate(url);
 
     function channelInfo(msg) {
+        const hashBadge = getChannelHashBadgeLabel(msg.channel_hash, msg.channel_idx);
+        const regionBadge = getChannelRegionBadgeLabel(msg.channel_region_flag);
         if (msg.message_type !== 'channel') {
-            return { label: null, text: msg.text || '-' };
+            return { label: null, text: msg.text || '-', hashBadge: null, regionBadge: null };
         }
         const rawText = msg.text || '';
         const match = rawText.match(/^\[([^\]]+)\]\s+([\s\S]*)$/);
@@ -34,23 +37,44 @@ export async function render(container, params, router) {
                 return {
                     label: knownLabel,
                     text: match ? (match[2] || '-') : (rawText || '-'),
+                    hashBadge,
+                    regionBadge,
                 };
             }
         }
         if (msg.channel_name) {
-            return { label: msg.channel_name, text: msg.text || '-' };
+            return { label: msg.channel_name, text: msg.text || '-', hashBadge, regionBadge };
         }
         if (match) {
             return {
                 label: match[1],
                 text: match[2] || '-',
+                hashBadge,
+                regionBadge,
             };
         }
         if (msg.channel_idx !== null && msg.channel_idx !== undefined) {
-            const knownLabel = resolveChannelLabel(msg.channel_idx, channelLabels);
-            return { label: knownLabel || `Ch ${msg.channel_idx}`, text: rawText || '-' };
+            return {
+                label: `Ch ${msg.channel_idx}`,
+                text: rawText || '-',
+                hashBadge,
+                regionBadge,
+            };
         }
-        return { label: t('messages.type_channel'), text: rawText || '-' };
+        return {
+            label: t('messages.type_channel'),
+            text: rawText || '-',
+            hashBadge,
+            regionBadge,
+        };
+    }
+
+    function channelLabelWithBadges(chInfo) {
+        return html`
+            <span class="font-medium">${chInfo.label || t('messages.type_channel')}</span>
+            ${chInfo.hashBadge ? html`<span class="badge badge-outline badge-xs sm:badge-sm">${chInfo.hashBadge}</span>` : nothing}
+            ${chInfo.regionBadge ? html`<span class="badge badge-accent badge-xs sm:badge-sm">${chInfo.regionBadge}</span>` : nothing}
+        `;
     }
 
     function senderBlock(msg, emphasize = false) {
@@ -143,6 +167,14 @@ export async function render(container, params, router) {
             if (!existing.sender_name && msg.sender_name) existing.sender_name = msg.sender_name;
             if (!existing.sender_tag_name && msg.sender_tag_name) existing.sender_tag_name = msg.sender_tag_name;
             if (!existing.channel_name && msg.channel_name) existing.channel_name = msg.channel_name;
+            if (!existing.channel_hash && msg.channel_hash) existing.channel_hash = msg.channel_hash;
+            if (
+                (existing.channel_region_flag === null || existing.channel_region_flag === undefined)
+                && msg.channel_region_flag !== null
+                && msg.channel_region_flag !== undefined
+            ) {
+                existing.channel_region_flag = msg.channel_region_flag;
+            }
             if (
                 existing.channel_name === 'Public'
                 && msg.channel_name
@@ -200,7 +232,7 @@ ${content}`, container);
                     const sender = senderBlock(msg);
                     const displayMessage = messageTextWithSender(msg, chInfo.text);
                     const fromPrimary = isChannel
-                        ? html`<span class="font-medium">${chInfo.label || t('messages.type_channel')}</span>`
+                        ? html`<span class="flex flex-wrap items-center gap-1">${channelLabelWithBadges(chInfo)}</span>`
                         : sender;
                     let receiversBlock = nothing;
                     if (msg.receivers && msg.receivers.length >= 1) {
@@ -249,7 +281,7 @@ ${content}`, container);
                     const sender = senderBlock(msg, true);
                     const displayMessage = messageTextWithSender(msg, chInfo.text);
                     const fromPrimary = isChannel
-                        ? html`<span class="font-medium">${chInfo.label || t('messages.type_channel')}</span>`
+                        ? html`<span class="flex flex-wrap items-center gap-1">${channelLabelWithBadges(chInfo)}</span>`
                         : sender;
                     let receiversBlock;
                     if (msg.receivers && msg.receivers.length >= 1) {

@@ -3,6 +3,7 @@ import {
     html, litRender, nothing,
     getConfig, getChannelLabelsMap, resolveChannelLabel,
     typeEmoji, errorAlert, pageColors, t, formatDateTime,
+    getChannelHashBadgeLabel, getChannelRegionBadgeLabel,
 } from '../components.js';
 import {
     iconNodes, iconAdvertisements, iconMessages, iconChannel,
@@ -71,6 +72,9 @@ function renderChannelMessages(channelMessages, channelLabels) {
 
     const channels = Object.entries(channelMessages).map(([channel, messages]) => {
         const label = channelLabel(channel, channelLabels);
+        const firstMessage = messages[0] || {};
+        const hashBadge = getChannelHashBadgeLabel(firstMessage.channel_hash, channel);
+        const regionBadge = getChannelRegionBadgeLabel(firstMessage.channel_region_flag);
         const msgLines = messages.map(msg => html`
             <div class="text-sm">
                 <span class="text-xs opacity-50">${formatTimeShort(msg.received_at)}</span>
@@ -80,6 +84,8 @@ function renderChannelMessages(channelMessages, channelLabels) {
         return html`<div>
             <h3 class="font-semibold text-sm mb-2 flex items-center gap-2">
                 <span class="badge badge-info badge-sm">${label}</span>
+                ${hashBadge ? html`<span class="badge badge-outline badge-sm">${hashBadge}</span>` : nothing}
+                ${regionBadge ? html`<span class="badge badge-accent badge-sm">${regionBadge}</span>` : nothing}
             </h3>
             <div class="space-y-1 pl-2 border-l-2 border-base-300">
                 ${msgLines}

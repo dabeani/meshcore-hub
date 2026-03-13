@@ -126,6 +126,7 @@ class TestEnJsonCompleteness:
         assert t("common.no_entity_configured", entity="test") == "No test configured"
         assert t("common.no_entity_yet", entity="test") == "No test yet"
         assert t("common.page_not_found") == "Page not found"
+        assert t("common.region") == "Region"
 
     def test_entity_keys(self):
         """Entity keys are all present."""
