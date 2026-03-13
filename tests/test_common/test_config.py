@@ -83,6 +83,15 @@ class TestCollectorSettings:
 
         assert settings.collector_ingest_mode.value == "letsmesh_upload"
 
+    def test_collector_ingest_mode_mc2mqtt(self) -> None:
+        """Test collector ingest mode can be set to MC2MQTT."""
+        settings = CollectorSettings(
+            _env_file=None,
+            collector_ingest_mode="mc2mqtt",
+        )
+
+        assert settings.collector_ingest_mode.value == "mc2mqtt"
+
     def test_mqtt_mc2mqtt_defaults_to_false(self) -> None:
         """MC2MQTT collector parsing stays opt-in by default."""
         settings = CollectorSettings(_env_file=None)

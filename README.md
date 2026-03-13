@@ -244,7 +244,7 @@ flowchart LR
     style MQTT fill:none,stroke:#7b1fa2,stroke-width:3px
 ```
 
-When `MQTT_MC2MQTT=true`, the collector normalizes meshcoretomqtt topics into the standard meshcore-hub events internally:
+When `COLLECTOR_INGEST_MODE=mc2mqtt` (or the legacy `MQTT_MC2MQTT=true` alias), the collector normalizes meshcoretomqtt topics into the standard meshcore-hub events internally:
 
 | meshcoretomqtt topic | meshcore-hub event | Stored as |
 |---|---|---|
@@ -267,7 +267,9 @@ MQTT_PASSWORD=hub_pass
 MQTT_PREFIX=meshcore               # must match [topics] prefix in meshcoretomqtt config.toml
 
 # Enable collector-side MC2MQTT parsing
-MQTT_MC2MQTT=true
+COLLECTOR_INGEST_MODE=mc2mqtt
+# Legacy alias also supported:
+# MQTT_MC2MQTT=true
 ```
 
 Then start the core stack normally:
@@ -305,7 +307,8 @@ Relevant environment variables:
 | `MQTT_PASSWORD` | *(none)* | Broker password (optional) |
 | `MQTT_TLS` | `false` | Enable TLS/SSL for the broker connection |
 | `MQTT_PREFIX` | `meshcore` | Topic prefix used by meshcoretomqtt |
-| `MQTT_MC2MQTT` | `false` | Enable collector-side parsing of meshcoretomqtt feeds |
+| `COLLECTOR_INGEST_MODE` | `native` | Set to `mc2mqtt` for `{prefix}/{IATA}/{KEY}` status, packets, and debug topics |
+| `MQTT_MC2MQTT` | `false` | Legacy alias for `COLLECTOR_INGEST_MODE=mc2mqtt` |
 
 ### Serial Device Access
 
@@ -392,8 +395,8 @@ All components are configured via environment variables. Create a `.env` file or
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `COLLECTOR_INGEST_MODE` | `native` | Ingest mode (`native` or `letsmesh_upload`) |
-| `MQTT_MC2MQTT` | `false` | Parse meshcoretomqtt topics on the configured MQTT broker |
+| `COLLECTOR_INGEST_MODE` | `native` | Ingest mode (`native`, `mc2mqtt`, or `letsmesh_upload`) |
+| `MQTT_MC2MQTT` | `false` | Legacy alias for `COLLECTOR_INGEST_MODE=mc2mqtt` |
 | `COLLECTOR_LETSMESH_DECODER_ENABLED` | `true` | Enable external LetsMesh packet decoding |
 | `COLLECTOR_LETSMESH_DECODER_COMMAND` | `meshcore-decoder` | Decoder CLI command |
 | `COLLECTOR_LETSMESH_DECODER_KEYS` | *(none)* | Additional decoder channel keys (`label=hex`, `label:hex`, or `hex`) |
@@ -401,7 +404,7 @@ All components are configured via environment variables. Create a `.env` file or
 
 #### MC2MQTT Compatibility Mode
 
-When `MQTT_MC2MQTT=true`, the collector subscribes to:
+When `COLLECTOR_INGEST_MODE=mc2mqtt` (or `MQTT_MC2MQTT=true`), the collector subscribes to:
 
 - `<prefix>/+/+/packets`
 - `<prefix>/+/+/status`
