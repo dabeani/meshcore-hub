@@ -71,8 +71,8 @@ function renderChannelMessages(channelMessages, channelLabels) {
     if (!channelMessages || Object.keys(channelMessages).length === 0) return nothing;
 
     const channels = Object.entries(channelMessages).map(([channel, messages]) => {
-        const label = channelLabel(channel, channelLabels);
         const firstMessage = messages[0] || {};
+        const label = firstMessage.channel_name || channelLabel(channel, channelLabels);
         const hashBadge = getChannelHashBadgeLabel(firstMessage.channel_hash, channel);
         const regionBadge = getChannelRegionBadgeLabel(firstMessage.channel_region_flag);
         const msgLines = messages.map(msg => html`
