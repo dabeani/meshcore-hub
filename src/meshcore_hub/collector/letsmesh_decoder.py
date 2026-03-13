@@ -158,11 +158,23 @@ class LetsMeshPacketDecoder:
         if not isinstance(decoded, dict):
             return None
 
-        channel_hash = decoded.get("channelHash")
-        if not isinstance(channel_hash, str):
+        channel_hash = self._normalize_channel_hash(decoded.get("channelHash"))
+        if channel_hash is None:
             return None
 
-        return self._channel_names_by_hash.get(channel_hash.upper())
+        return self._channel_names_by_hash.get(channel_hash)
+
+    @staticmethod
+    def _normalize_channel_hash(value: Any) -> str | None:
+        """Normalize MeshCore channel hash to canonical uppercase hex."""
+        if not isinstance(value, str):
+            return None
+        normalized = value.strip().upper().removeprefix("0X")
+        if len(normalized) not in {2, 4, 6}:
+            return None
+        if any(ch not in "0123456789ABCDEF" for ch in normalized):
+            return None
+        return normalized
 
     def channel_labels_by_index(self) -> dict[int, str]:
         """Return channel labels keyed by numeric channel index."""
