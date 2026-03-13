@@ -54,6 +54,8 @@ class TestHandleChannelMessage:
         """Test that channel messages are stored."""
         payload = {
             "channel_idx": 4,
+            "channel_hash": "A1B2C3",
+            "channel_region_flag": 4660,
             "text": "Channel broadcast",
             "path_len": 10,
             "SNR": 8.5,
@@ -67,6 +69,8 @@ class TestHandleChannelMessage:
         assert msg is not None
         assert msg.message_type == "channel"
         assert msg.channel_idx == 4
+        assert msg.channel_hash == "A1B2C3"
+        assert msg.channel_region_flag == 4660
         assert msg.text == "Channel broadcast"
         assert msg.path_len == 10
         assert msg.snr == 8.5

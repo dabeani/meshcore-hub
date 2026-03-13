@@ -13,6 +13,8 @@ def compute_message_hash(
     text: str,
     pubkey_prefix: Optional[str] = None,
     channel_idx: Optional[int] = None,
+    channel_hash: Optional[str] = None,
+    channel_region_flag: Optional[int] = None,
     sender_timestamp: Optional[datetime] = None,
     txt_type: Optional[int] = None,
 ) -> str:
@@ -25,6 +27,8 @@ def compute_message_hash(
         text: Message content
         pubkey_prefix: Sender's public key prefix (12 chars)
         channel_idx: Channel index for channel messages
+        channel_hash: Full channel hash for channel messages
+        channel_region_flag: Per-channel region flag when present
         sender_timestamp: Sender's timestamp
         txt_type: Message type indicator
 
@@ -36,6 +40,8 @@ def compute_message_hash(
         text or "",
         pubkey_prefix or "",
         str(channel_idx) if channel_idx is not None else "",
+        channel_hash.upper() if channel_hash else "",
+        str(channel_region_flag) if channel_region_flag is not None else "",
         sender_timestamp.isoformat() if sender_timestamp else "",
         str(txt_type) if txt_type is not None else "",
     ]

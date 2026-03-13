@@ -75,12 +75,38 @@ class TestComputeMessageHash:
 
         assert hash1 != hash2
 
+    def test_multibyte_channel_hash_and_region_affect_hash(self) -> None:
+        """Full channel hash and region flag participate in message deduping."""
+        hash1 = compute_message_hash(
+            text="Hello",
+            channel_idx=1,
+            channel_hash="000001",
+            channel_region_flag=1,
+        )
+        hash2 = compute_message_hash(
+            text="Hello",
+            channel_idx=1,
+            channel_hash="000001",
+            channel_region_flag=2,
+        )
+        hash3 = compute_message_hash(
+            text="Hello",
+            channel_idx=1,
+            channel_hash="000002",
+            channel_region_flag=1,
+        )
+
+        assert hash1 != hash2
+        assert hash1 != hash3
+
     def test_handles_none_values(self) -> None:
         """Hash function should handle None values gracefully."""
         hash1 = compute_message_hash(
             text="Test",
             pubkey_prefix=None,
             channel_idx=None,
+            channel_hash=None,
+            channel_region_flag=None,
             sender_timestamp=None,
             txt_type=None,
         )

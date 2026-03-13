@@ -43,6 +43,14 @@ class MessageRead(BaseModel):
         default=None, description="Sender's name from node tags"
     )
     channel_idx: Optional[int] = Field(default=None, description="Channel index")
+    channel_hash: Optional[str] = Field(
+        default=None,
+        description="Full MeshCore channel hash (1/2/3 bytes as hex)",
+    )
+    channel_region_flag: Optional[int] = Field(
+        default=None,
+        description="Per-channel region flag when present",
+    )
     text: str = Field(..., description="Message content")
     path_len: Optional[int] = Field(default=None, description="Number of hops")
     txt_type: Optional[int] = Field(default=None, description="Message type indicator")

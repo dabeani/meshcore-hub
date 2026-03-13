@@ -435,7 +435,8 @@ Normalization behavior:
 - `packet_type=5` packets are mapped to `channel_msg_recv`.
 - `packet_type=1`, `2`, and `7` packets are mapped to `contact_msg_recv` when decryptable text is available.
 - For channel packets, if a channel key is available, a channel label is attached (for example `Public` or `#test`) for UI display.
-- In the messages feed and dashboard channel sections, known channel indexes are preferred for labels (`17 -> Public`, `217 -> #test`) to avoid stale channel-name mismatches.
+- Decoder-backed channel ingest now preserves the full `channel_hash` (1/2/3 bytes as hex) and optional `channel_region_flag` from native/mc2mqtt packet data for planned non-private channel integration.
+- In the messages feed and dashboard channel sections, known channel indexes are preferred for labels across all supported MeshCore hash lengths to avoid stale channel-name mismatches.
 - Additional channel names are loaded from `COLLECTOR_LETSMESH_DECODER_KEYS` when entries are provided as `label=hex` (for example `bot=<key>`).
 - Decoder-advertisement packets with location metadata update node GPS (`lat/lon`) for map display.
 - This keeps advertisement listings closer to native mode behavior (node advert traffic only, not observer status telemetry).

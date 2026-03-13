@@ -120,12 +120,36 @@ def test_channel_name_lookup_from_decoded_hash() -> None:
     assert decoder.channel_name_from_decoded(decoded_packet) == "bot"
 
 
+def test_channel_name_lookup_from_multibyte_decoded_hash() -> None:
+    """Decoder resolves labels for 2-byte and 3-byte MeshCore channel hashes."""
+    key_hex = "EB50A1BCB3E4E5D7BF69A57C9DADA211"
+    decoder = LetsMeshPacketDecoder(
+        enabled=False,
+        channel_keys=[f"#bot={key_hex}"],
+    )
+
+    for hash_bytes in (2, 3):
+        decoded_packet = {
+            "payload": {
+                "decoded": {
+                    "channelHash": decoder._compute_channel_hash(
+                        key_hex, hash_bytes=hash_bytes
+                    ),
+                }
+            }
+        }
+
+        assert decoder.channel_name_from_decoded(decoded_packet) == "bot"
+
+
 def test_channel_labels_by_index_includes_labeled_entries() -> None:
     """Channel labels map includes built-ins and label=key env entries."""
+    public_key_hex = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
+    bot_key_hex = "EB50A1BCB3E4E5D7BF69A57C9DADA211"
     decoder = LetsMeshPacketDecoder(
         enabled=False,
         channel_keys=[
-            "bot=EB50A1BCB3E4E5D7BF69A57C9DADA211",
+            f"bot={bot_key_hex}",
             "chat=D0BDD6D71538138ED979EEC00D98AD97",
         ],
     )
@@ -136,3 +160,5 @@ def test_channel_labels_by_index_includes_labeled_entries() -> None:
     assert labels[217] == "#test"
     assert labels[202] == "#bot"
     assert labels[184] == "#chat"
+    assert labels[int(decoder._compute_channel_hash(public_key_hex, 2), 16)] == "Public"
+    assert labels[int(decoder._compute_channel_hash(bot_key_hex, 3), 16)] == "#bot"
