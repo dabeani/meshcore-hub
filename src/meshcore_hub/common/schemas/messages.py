@@ -240,6 +240,14 @@ class ChannelMessage(BaseModel):
     pubkey_prefix: Optional[str] = Field(
         default=None, description="Sender public key prefix"
     )
+    channel_hash: Optional[str] = Field(
+        default=None,
+        description="Full MeshCore channel hash (1/2/3 bytes as hex)",
+    )
+    channel_region_flag: Optional[int] = Field(
+        default=None,
+        description="Per-channel region flag when present",
+    )
     received_at: datetime = Field(..., description="When received")
 
 

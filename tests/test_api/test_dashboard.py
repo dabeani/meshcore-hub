@@ -34,6 +34,16 @@ class TestDashboardStats:
         assert data["total_messages"] == 1
         assert data["total_advertisements"] == 1
 
+    def test_get_stats_includes_channel_region_metadata(
+        self, client_no_auth, sample_message_with_receiver
+    ):
+        """Channel summaries keep channel hash and region metadata for the UI."""
+        response = client_no_auth.get("/api/v1/dashboard/stats")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["channel_messages"]["1"][0]["channel_hash"] == "A1B2C3"
+        assert data["channel_messages"]["1"][0]["channel_region_flag"] == 4660
+
 
 class TestDashboardHtmlRemoved:
     """Tests that legacy HTML dashboard endpoint has been removed."""

@@ -173,6 +173,7 @@ Toast/flash messages after successful operations:
 | `received` | Received | Received timestamp |
 | `received_by` | Received By | Received by field |
 | `receivers` | Receivers | Multiple receivers |
+| `region` | Region | Channel region badge label |
 | `from` | From | Message sender |
 | `unnamed` | Unnamed | Fallback for unnamed items |
 | `unnamed_node` | Unnamed Node | Fallback for unnamed nodes |

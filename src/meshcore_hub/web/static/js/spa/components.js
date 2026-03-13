@@ -51,6 +51,58 @@ export function resolveChannelLabel(channelIdx, channelLabels = getChannelLabels
 }
 
 /**
+ * Infer the MeshCore channel hash width in bytes.
+ *
+ * @param {string|null} channelHash
+ * @param {number|string|null} channelIdx
+ * @returns {number|null}
+ */
+export function inferChannelHashBytes(channelHash, channelIdx = null) {
+    if (typeof channelHash === 'string') {
+        const normalized = channelHash.trim().toUpperCase();
+        if (/^[0-9A-F]{2}(?:[0-9A-F]{2}){0,2}$/.test(normalized)) {
+            return normalized.length / 2;
+        }
+    }
+
+    const parsed = parseInt(String(channelIdx), 10);
+    if (!Number.isInteger(parsed) || parsed < 0) return null;
+    if (parsed <= 0xFF) return 1;
+    if (parsed <= 0xFFFF) return 2;
+    if (parsed <= 0xFFFFFF) return 3;
+    return null;
+}
+
+/**
+ * Build the badge label for a channel hash width.
+ *
+ * @param {string|null} channelHash
+ * @param {number|string|null} channelIdx
+ * @returns {string|null}
+ */
+export function getChannelHashBadgeLabel(channelHash, channelIdx = null) {
+    const bytes = inferChannelHashBytes(channelHash, channelIdx);
+    return bytes ? `#${bytes}-byte` : null;
+}
+
+/**
+ * Build the badge label for a channel region flag.
+ *
+ * @param {number|string|null} channelRegionFlag
+ * @returns {string|null}
+ */
+export function getChannelRegionBadgeLabel(channelRegionFlag) {
+    if (
+        channelRegionFlag === null
+        || channelRegionFlag === undefined
+        || channelRegionFlag === ''
+    ) {
+        return null;
+    }
+    return `${t('common.region')} ${channelRegionFlag}`;
+}
+
+/**
  * Parse API datetime strings reliably.
  * MeshCore API often returns UTC timestamps without an explicit timezone suffix.
  * In that case, treat them as UTC by appending 'Z' before Date parsing.
