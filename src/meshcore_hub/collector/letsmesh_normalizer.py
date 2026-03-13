@@ -111,15 +111,23 @@ class LetsMeshNormalizer:
             # instead of surfacing the raw JSON as a contact message.
             return None
 
-        # In LetsMesh compatibility mode, only show messages that decrypt.
+        # In LetsMesh compatibility mode, prefer decrypted text payloads.
+        # For channel packets we still surface placeholder entries when packet
+        # metadata is decodable, so channel activity is visible in the UI even
+        # when the message body cannot be decrypted.
         text = self._extract_letsmesh_decoder_text(decoded_packet)
         if not text:
-            logger.debug(
-                "Skipping LetsMesh packet %s (type=%s): no decryptable text payload",
-                packet_hash_text or "unknown",
-                packet_type,
-            )
-            return None
+            if (
+                event_type != "channel_msg_recv"
+                or self._extract_letsmesh_decoder_channel_hash(decoded_packet) is None
+            ):
+                logger.debug(
+                    "Skipping LetsMesh packet %s (type=%s): no decryptable text payload",
+                    packet_hash_text or "unknown",
+                    packet_type,
+                )
+                return None
+            text = "Encrypted channel message"
 
         txt_type = self._parse_int(payload.get("txt_type"))
         if txt_type is None:

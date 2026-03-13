@@ -931,6 +931,57 @@ class TestSubscriber:
         letsmesh_packet_handler.assert_called_once()
         channel_handler.assert_not_called()
 
+    def test_letsmesh_packet_without_decrypted_text_still_maps_channel_metadata(
+        self, mock_mqtt_client, db_manager
+    ) -> None:
+        """Decoded channel metadata is surfaced even without decrypted message text."""
+        mock_mqtt_client.topic_builder.parse_letsmesh_upload_topic.return_value = (
+            "a" * 64,
+            "packets",
+        )
+        subscriber = Subscriber(
+            mock_mqtt_client,
+            db_manager,
+            ingest_mode="letsmesh_upload",
+        )
+        letsmesh_packet_handler = MagicMock()
+        channel_handler = MagicMock()
+        subscriber.register_handler("letsmesh_packet", letsmesh_packet_handler)
+        subscriber.register_handler("channel_msg_recv", channel_handler)
+        subscriber.start()
+
+        with patch.object(
+            subscriber._letsmesh_decoder,
+            "decode_payload",
+            return_value={
+                "payloadType": 5,
+                "payload": {
+                    "decoded": {
+                        "channelHash": "00CA",
+                    }
+                },
+            },
+        ):
+            subscriber._handle_mqtt_message(
+                topic=f"meshcore/BOS/{'a' * 64}/packets",
+                pattern="meshcore/BOS/+/packets",
+                payload={
+                    "packet_type": "5",
+                    "hash": "ABCDEF1234",
+                    "raw": "15040791959fd9",
+                },
+            )
+
+        channel_handler.assert_called_once()
+        public_key, event_type, payload, _db = channel_handler.call_args.args
+        assert public_key == "a" * 64
+        assert event_type == "channel_msg_recv"
+        assert payload["channel_hash"] == "00CA"
+        assert payload["channel_idx"] == 202
+        assert payload["channel_name"] == "Ch 202"
+        assert payload["text"] == "Encrypted channel message"
+        letsmesh_packet_handler.assert_not_called()
+
     def test_letsmesh_packet_uses_decoder_text_when_available(
         self, mock_mqtt_client, db_manager
     ) -> None:

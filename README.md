@@ -440,7 +440,8 @@ Normalization behavior:
 - Additional channel names are loaded from `COLLECTOR_LETSMESH_DECODER_KEYS` when entries are provided as `label=hex` (for example `bot=<key>`).
 - Decoder-advertisement packets with location metadata update node GPS (`lat/lon`) for map display.
 - This keeps advertisement listings closer to native mode behavior (node advert traffic only, not observer status telemetry).
-- Packets without decryptable message text are kept as informational `letsmesh_packet` events and are not shown in the messages feed; when decode succeeds the decoded JSON is attached to those packet log events.
+- Channel packets with decoded channel metadata but no decryptable text are still mapped to `channel_msg_recv` with placeholder text (`Encrypted channel message`) so channel activity remains visible in the messages feed/dashboard.
+- Other packets without decryptable text are kept as informational `letsmesh_packet` events; when decode succeeds the decoded JSON is attached to those packet log events.
 - When decoder output includes a human sender (`payload.decoded.decrypted.sender`), message text is normalized to `Name: Message` before storage; receiver/observer names are never used as sender fallback.
 - The collector keeps built-in keys for `Public` and `#test`, and merges any additional keys from `COLLECTOR_LETSMESH_DECODER_KEYS`.
 - Docker runtime installs `@michaelhart/meshcore-decoder@0.2.7` and applies `patches/@michaelhart+meshcore-decoder+0.2.7.patch` via `patch-package` for Node compatibility.
