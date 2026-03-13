@@ -20,6 +20,7 @@ from meshcore_hub.common.schemas.messages import (
 )
 
 router = APIRouter()
+ENCRYPTED_CHANNEL_MESSAGE_PLACEHOLDER = "Encrypted channel message"
 
 
 def _channel_group_key(message: Message, channel_name: str | None) -> str:
@@ -36,6 +37,24 @@ def _channel_group_key(message: Message, channel_name: str | None) -> str:
     if message.channel_region_flag is not None:
         return f"{key}@{message.channel_region_flag}"
     return key
+
+
+def _extract_channel_name_from_message_text(text: str) -> tuple[str | None, str]:
+    """Extract `[Channel Name] message` hints as ``(channel_name, message_text)``."""
+    stripped = text.strip()
+    if not stripped.startswith("["):
+        return None, text
+
+    close_idx = stripped.find("]")
+    if close_idx <= 1:
+        return None, text
+
+    inferred_name = stripped[1:close_idx].strip()
+    if not inferred_name:
+        return None, text
+
+    inferred_text = stripped[close_idx + 1 :].lstrip()
+    return inferred_name, inferred_text
 
 
 @router.get("/stats", response_model=DashboardStats)
@@ -177,6 +196,7 @@ async def get_stats(
             Message.channel_region_flag,
         )
         .where(Message.message_type == "channel")
+        .where(Message.text != ENCRYPTED_CHANNEL_MESSAGE_PLACEHOLDER)
         .group_by(
             Message.channel_idx,
             Message.channel_hash,
@@ -187,6 +207,7 @@ async def get_stats(
         messages_query = (
             select(Message)
             .where(Message.message_type == "channel")
+            .where(Message.text != ENCRYPTED_CHANNEL_MESSAGE_PLACEHOLDER)
             .where(Message.channel_idx == channel_idx)
             .where(
                 Message.channel_hash.is_(None)
@@ -232,9 +253,16 @@ async def get_stats(
                 channel_hash=m.channel_hash,
                 channel_idx=m.channel_idx,
             )
+            inferred_name, inferred_text = _extract_channel_name_from_message_text(
+                m.text
+            )
+            message_text = inferred_text if inferred_name else m.text
+            if inferred_name:
+                if channel_name is None or channel_name.startswith("Ch "):
+                    channel_name = inferred_name
             grouped_messages.append(
                 ChannelMessage(
-                    text=m.text,
+                    text=message_text,
                     sender_name=(
                         msg_sender_names.get(m.pubkey_prefix)
                         if m.pubkey_prefix
