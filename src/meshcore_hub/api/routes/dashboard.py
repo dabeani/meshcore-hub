@@ -21,6 +21,8 @@ from meshcore_hub.common.schemas.messages import (
 
 router = APIRouter()
 ENCRYPTED_CHANNEL_MESSAGE_PLACEHOLDER = "Encrypted channel message"
+GENERIC_PUBLIC_CHANNEL_NAME = "Public"
+GENERIC_CHANNEL_PREFIX = "Ch "
 
 
 def _channel_group_key(message: Message) -> str:
@@ -64,7 +66,9 @@ def _is_generic_channel_name(channel_name: str | None) -> bool:
     if not normalized:
         return True
 
-    return normalized == "Public" or normalized.startswith("Ch ")
+    return normalized == GENERIC_PUBLIC_CHANNEL_NAME or normalized.startswith(
+        GENERIC_CHANNEL_PREFIX
+    )
 
 
 def _select_dashboard_channel_name(
@@ -210,7 +214,7 @@ async def get_stats(
 
     # Get latest 5 messages for each distinct channel identity.
     channel_messages: dict[str, list[ChannelMessage]] = {}
-    channel_merge_keys: dict[str, str] = {}
+    channel_merge_keys: dict[tuple[str | None, int | None] | str, str] = {}
     channel_groups = session.execute(
         select(
             Message.channel_idx,
@@ -311,8 +315,8 @@ async def get_stats(
                         message.channel_name = selected_channel_name
 
             stable_group_key = _channel_group_key(channel_msgs[0])
-            merge_key = (
-                f"{selected_channel_name}@{channel_region_flag}"
+            merge_key: tuple[str | None, int | None] | str = (
+                (selected_channel_name, channel_region_flag)
                 if selected_channel_name
                 and not _is_generic_channel_name(selected_channel_name)
                 else stable_group_key
