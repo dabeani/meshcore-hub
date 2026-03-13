@@ -11,6 +11,8 @@ from meshcore_hub.collector.letsmesh_decoder import LetsMeshPacketDecoder
 
 logger = logging.getLogger(__name__)
 
+ENCRYPTED_CHANNEL_MESSAGE_PLACEHOLDER = "Encrypted channel message"
+
 
 class LetsMeshNormalizer:
     """Normalize LetsMesh upload topics/payloads into collector event payloads."""
@@ -117,17 +119,19 @@ class LetsMeshNormalizer:
         # when the message body cannot be decrypted.
         text = self._extract_letsmesh_decoder_text(decoded_packet)
         if not text:
-            if (
-                event_type != "channel_msg_recv"
-                or self._extract_letsmesh_decoder_channel_hash(decoded_packet) is None
-            ):
+            has_channel_metadata = (
+                event_type == "channel_msg_recv"
+                and self._extract_letsmesh_decoder_channel_hash(decoded_packet)
+                is not None
+            )
+            if not has_channel_metadata:
                 logger.debug(
                     "Skipping LetsMesh packet %s (type=%s): no decryptable text payload",
                     packet_hash_text or "unknown",
                     packet_type,
                 )
                 return None
-            text = "Encrypted channel message"
+            text = ENCRYPTED_CHANNEL_MESSAGE_PLACEHOLDER
 
         txt_type = self._parse_int(payload.get("txt_type"))
         if txt_type is None:
@@ -923,7 +927,30 @@ class LetsMeshNormalizer:
         decoded = payload.get("decoded")
         if not isinstance(decoded, dict):
             return None
-        return cls._parse_int(decoded.get("regionFlag"))
+        decrypted = decoded.get("decrypted")
+        decrypted_dict = decrypted if isinstance(decrypted, dict) else {}
+        candidates = (
+            decoded.get("regionFlag"),
+            decoded.get("channelRegionFlag"),
+            decoded.get("channel_region_flag"),
+            decrypted_dict.get("regionFlag"),
+            decrypted_dict.get("channelRegionFlag"),
+            payload.get("regionFlag"),
+            payload.get("channelRegionFlag"),
+        )
+
+        for value in candidates:
+            parsed = cls._parse_int(value)
+            if parsed is not None:
+                return parsed
+            if isinstance(value, str):
+                normalized = value.strip().lower()
+                if normalized.startswith("0x"):
+                    try:
+                        return int(normalized, 16)
+                    except ValueError:
+                        continue
+        return None
 
     @staticmethod
     def _normalize_full_public_key(value: Any) -> str | None:
