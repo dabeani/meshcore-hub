@@ -80,12 +80,14 @@ if TYPE_CHECKING:
 @click.option(
     "--ingest-mode",
     "collector_ingest_mode",
-    type=click.Choice(["native", "letsmesh_upload"], case_sensitive=False),
+    type=click.Choice(
+        ["native", "mc2mqtt", "letsmesh_upload"], case_sensitive=False
+    ),
     default="native",
     envvar="COLLECTOR_INGEST_MODE",
     help=(
-        "Collector ingest mode: native MeshCore events or LetsMesh upload "
-        "(packets/status/internal)"
+        "Collector ingest mode: native MeshCore events, meshcoretomqtt feeds, "
+        "or LetsMesh upload topics"
     ),
 )
 @click.option(
@@ -162,10 +164,10 @@ def collector(
     if overrides:
         settings = settings.model_copy(update=overrides)
 
-    if mqtt_mc2mqtt and collector_ingest_mode.lower() != "native":
+    if mqtt_mc2mqtt and collector_ingest_mode.lower() == "letsmesh_upload":
         raise click.UsageError(
             "MQTT_MC2MQTT cannot be combined with COLLECTOR_INGEST_MODE values "
-            "other than 'native'."
+            "other than 'native' or 'mc2mqtt'."
         )
 
     # Use effective database URL if not explicitly provided

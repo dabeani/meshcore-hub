@@ -36,6 +36,7 @@ class CollectorIngestMode(str, Enum):
     """Collector MQTT ingest mode."""
 
     NATIVE = "native"
+    MC2MQTT = "mc2mqtt"
     LETSMESH_UPLOAD = "letsmesh_upload"
 
 
@@ -190,6 +191,8 @@ class CollectorSettings(CommonSettings):
         description=(
             "Collector MQTT ingest mode. "
             "'native' expects <prefix>/<pubkey>/event/<event_name>. "
+            "'mc2mqtt' expects meshcoretomqtt feeds on "
+            "<prefix>/<iata>/<pubkey>/(packets|status|debug). "
             "'letsmesh_upload' expects LetsMesh observer uploads on "
             "<prefix>/<pubkey>/(packets|status|internal)."
         ),
@@ -198,8 +201,7 @@ class CollectorSettings(CommonSettings):
         default=False,
         description=(
             "Enable MC2MQTT topic parsing in the collector. "
-            "When true, the collector treats MQTT input as meshcoretomqtt feeds "
-            "and ignores COLLECTOR_INGEST_MODE=native."
+            "Legacy compatibility alias for COLLECTOR_INGEST_MODE=mc2mqtt."
         ),
     )
     collector_letsmesh_decoder_enabled: bool = Field(
