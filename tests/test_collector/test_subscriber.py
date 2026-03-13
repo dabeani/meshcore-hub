@@ -957,7 +957,7 @@ class TestSubscriber:
                 "payloadType": 5,
                 "payload": {
                     "decoded": {
-                        "channelHash": "00CA",
+                        "channelHash": "0x00ca",
                     }
                 },
             },

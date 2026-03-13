@@ -906,7 +906,7 @@ class LetsMeshNormalizer:
         channel_hash = decoded.get("channelHash")
         if not isinstance(channel_hash, str):
             return None
-        normalized = channel_hash.strip().upper()
+        normalized = channel_hash.strip().upper().removeprefix("0X")
         if len(normalized) not in {2, 4, 6}:
             return None
         if any(ch not in "0123456789ABCDEF" for ch in normalized):

@@ -142,6 +142,25 @@ def test_channel_name_lookup_from_multibyte_decoded_hash() -> None:
         assert decoder.channel_name_from_decoded(decoded_packet) == "bot"
 
 
+def test_channel_name_lookup_normalizes_prefixed_hash_variants() -> None:
+    """Decoder resolves labels for non-canonical decoded channel hash formats."""
+    key_hex = "EB50A1BCB3E4E5D7BF69A57C9DADA211"
+    decoder = LetsMeshPacketDecoder(
+        enabled=False,
+        channel_keys=[f"#bot={key_hex}"],
+    )
+    channel_hash = decoder._compute_channel_hash(key_hex, hash_bytes=2)
+    decoded_packet = {
+        "payload": {
+            "decoded": {
+                "channelHash": f" 0x{channel_hash.lower()} ",
+            }
+        }
+    }
+
+    assert decoder.channel_name_from_decoded(decoded_packet) == "bot"
+
+
 def test_channel_labels_by_index_includes_labeled_entries() -> None:
     """Channel labels map includes built-ins and label=key env entries."""
     public_key_hex = "8B3387E9C5CDEA6AC9E5EDBAA115CD72"
