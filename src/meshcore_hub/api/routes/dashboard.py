@@ -297,6 +297,7 @@ async def get_stats(
                         msg_tag_names.get(m.pubkey_prefix) if m.pubkey_prefix else None
                     ),
                     pubkey_prefix=m.pubkey_prefix,
+                    channel_idx=m.channel_idx,
                     channel_name=channel_name,
                     channel_hash=m.channel_hash,
                     channel_region_flag=m.channel_region_flag,
