@@ -44,6 +44,7 @@ class TestDashboardStats:
         assert data["channel_messages"]["A1B2C3@4660"][0]["channel_hash"] == "A1B2C3"
         assert data["channel_messages"]["A1B2C3@4660"][0]["channel_region_flag"] == 4660
         assert data["channel_messages"]["A1B2C3@4660"][0]["channel_name"] == "Ch 1"
+        assert data["channel_messages"]["A1B2C3@4660"][0]["channel_idx"] == 1
 
     def test_get_stats_keeps_region_variants_separate(
         self, client_no_auth, api_db_session
@@ -192,6 +193,71 @@ class TestDashboardStats:
             "Earlier status",
         ]
         assert all(msg["channel_name"] == "#ops" for msg in merged_messages)
+
+    def test_get_stats_includes_channel_idx_in_messages(
+        self, client_no_auth, api_db_session
+    ):
+        """Dashboard channel messages include channel_idx for client-side label resolution."""
+        api_db_session.add(
+            Message(
+                message_type="channel",
+                channel_idx=221,
+                channel_hash="DD",
+                text="Hello from channel 221",
+                received_at=datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+            )
+        )
+        api_db_session.commit()
+
+        response = client_no_auth.get("/api/v1/dashboard/stats")
+        assert response.status_code == 200
+        data = response.json()
+        channel_messages = data["channel_messages"]
+
+        assert len(channel_messages) >= 1
+        msg = next(
+            m
+            for msgs in channel_messages.values()
+            for m in msgs
+            if m.get("channel_hash") == "DD"
+        )
+        assert msg["channel_idx"] == 221
+        assert msg["channel_name"] == "Ch 221"
+
+    def test_get_stats_includes_sender_name_in_messages(
+        self, client_no_auth, api_db_session
+    ):
+        """Dashboard channel messages include sender_name for display."""
+        node = Node(
+            public_key="aabbccdd1122aabbccdd1122aabbccdd",
+            name="SenderNode",
+            first_seen=datetime(2024, 1, 1, tzinfo=timezone.utc),
+            last_seen=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        )
+        api_db_session.add(node)
+        api_db_session.flush()
+        api_db_session.add(
+            Message(
+                message_type="channel",
+                channel_idx=0,
+                pubkey_prefix="aabbccdd1122",
+                text="Hello world",
+                received_at=datetime(2024, 1, 1, 12, 0, tzinfo=timezone.utc),
+            )
+        )
+        api_db_session.commit()
+
+        response = client_no_auth.get("/api/v1/dashboard/stats")
+        assert response.status_code == 200
+        data = response.json()
+        channel_messages = data["channel_messages"]
+
+        all_msgs = [m for msgs in channel_messages.values() for m in msgs]
+        sender_msg = next(
+            (m for m in all_msgs if m.get("pubkey_prefix") == "aabbccdd1122"), None
+        )
+        assert sender_msg is not None
+        assert sender_msg["sender_name"] == "SenderNode"
 
 
 class TestDashboardHtmlRemoved:

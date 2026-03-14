@@ -72,14 +72,26 @@ function renderChannelMessages(channelMessages, channelLabels) {
 
     const channels = Object.entries(channelMessages).map(([channel, messages]) => {
         const firstMessage = messages[0] || {};
-        const label = firstMessage.channel_name || channelLabel(channel, channelLabels);
+        // Prefer client-side configured label (same priority as Messages tab), then
+        // fall back to the backend-resolved channel_name, then the group key.
+        const resolvedLabel = firstMessage.channel_idx != null
+            ? resolveChannelLabel(firstMessage.channel_idx, channelLabels)
+            : null;
+        const label = resolvedLabel || firstMessage.channel_name || channelLabel(channel, channelLabels);
         const hashBadge = getChannelHashBadgeLabel(firstMessage.channel_hash, channel);
         const regionBadge = getChannelRegionBadgeLabel(firstMessage.channel_region_flag);
-        const msgLines = messages.map(msg => html`
+        const msgLines = messages.map(msg => {
+            const senderName = msg.sender_tag_name || msg.sender_name;
+            const textBody = msg.text || '';
+            const displayText = senderName && !textBody.toLowerCase().startsWith(`${senderName.toLowerCase()}:`)
+                ? `${senderName}: ${textBody}`
+                : textBody;
+            return html`
             <div class="text-sm">
                 <span class="text-xs opacity-50">${formatTimeShort(msg.received_at)}</span>
-                <span class="break-words" style="white-space: pre-wrap;">${msg.text || ''}</span>
-            </div>`);
+                <span class="break-words" style="white-space: pre-wrap;">${displayText}</span>
+            </div>`;
+        });
 
         return html`<div>
             <h3 class="font-semibold text-sm mb-2 flex items-center gap-2">

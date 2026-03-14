@@ -244,6 +244,9 @@ class ChannelMessage(BaseModel):
     pubkey_prefix: Optional[str] = Field(
         default=None, description="Sender public key prefix"
     )
+    channel_idx: Optional[int] = Field(
+        default=None, description="Channel index for client-side label resolution"
+    )
     channel_name: Optional[str] = Field(
         default=None,
         description="Resolved display label for the channel",
