@@ -35,14 +35,9 @@ def resolve_channel_label(
     """Resolve a configured label from channel index or hash."""
     labels = build_channel_labels()
 
-    normalized_hash = (
-        channel_hash.strip().upper() if isinstance(channel_hash, str) else ""
-    )
+    normalized_hash = LetsMeshPacketDecoder._normalize_channel_hash(channel_hash)
     if normalized_hash:
-        try:
-            return labels.get(int(normalized_hash, 16))
-        except ValueError:
-            pass
+        return labels.get(int(normalized_hash, 16))
 
     if channel_idx is None:
         return None
@@ -68,6 +63,9 @@ def format_channel_label(
         return resolved_label
     if channel_idx is not None:
         return f"Ch {channel_idx}"
+    normalized_hash = LetsMeshPacketDecoder._normalize_channel_hash(channel_hash)
+    if normalized_hash:
+        return f"Ch {normalized_hash}"
     if channel_hash:
-        return f"Ch {channel_hash.upper()}"
+        return f"Ch {channel_hash.strip().upper()}"
     return None
